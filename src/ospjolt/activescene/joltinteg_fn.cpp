@@ -24,7 +24,6 @@
  */
 
 #include "joltinteg_fn.h"          // IWYU pragma: associated
-#include <CylinderShape.h>
 #include <osp/activescene/basic_fn.h>
 
 #include <utility>                   // for std::exchange
@@ -106,7 +105,7 @@ void SysJolt::update_world(
     rCtxWorld.m_pTransform = std::addressof(rTf);
 
     // Update the world
-    pJoltWorld->Update(timestep, 1, &rCtxWorld.m_temp_allocator, NULL); //TODO : job system
+    pJoltWorld->Update(timestep, 1, &rCtxWorld.m_temp_allocator, rCtxWorld.m_joltJobSystem.get()); //TODO : job system
 }
 
 void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcept
@@ -122,35 +121,34 @@ void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcep
 
 }
 
-Ref<TransformedShape> SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape)
+TransformedShapePtr_t SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape)
 {
-    Ref<Shape> jolt_shape;
+    Shape* joltShape;
     switch (shape)
     {
     case EShape::Sphere:
-        jolt_shape = Ref((Shape *) new SphereShape(1.0f));
+        joltShape = (Shape *) new SphereShape(1.0f);
         break;
     case EShape::Box:
-        jolt_shape =  Ref((Shape *) new BoxShape(Vec3Arg(1.0f, 1.0f, 1.0f)));
+        joltShape =  (Shape *) new BoxShape(Vec3Arg(1.0f, 1.0f, 1.0f));
         break;
     case EShape::Cylinder:
-        jolt_shape =  Ref((Shape *) new CylinderShape(1.0f, 2.0f));
+        joltShape =  (Shape *) new CylinderShape(1.0f, 2.0f);
         break;
     default:
         // TODO: support other shapes, sphere is used for now
-        jolt_shape =  Ref((Shape *) new SphereShape(1.0f));
+        joltShape =  (Shape *) new SphereShape(1.0f);
         break;
     }
-
-    return Ref(new TransformedShape(RVec3::sZero(), Quat::sZero(), jolt_shape, BodyID(), SubShapeIDCreator()));
+    return TransformedShapePtr_t(new TransformedShape(RVec3::sZero(), Quat::sZero(), joltShape, BodyID(), SubShapeIDCreator()));
 }
 
-void SysJolt::orient_shape(Ref<TransformedShape> &jolt_shape, osp::EShape osp_shape, osp::Vector3 const &translation, osp::Matrix3 const &rotation, osp::Vector3 const &scale)
+void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospShape, osp::Vector3 const &translation, osp::Matrix3 const &rotation, osp::Vector3 const &scale)
 {
     auto rawQuat = Magnum::Quaternion::fromMatrix(rotation).data();
     Quat joltRotation(rawQuat[0], rawQuat[1], rawQuat[2], rawQuat[3]);
     
-    jolt_shape->SetWorldTransform(RVec3Arg(translation.x(), translation.y(), translation.z()), joltRotation, Vec3Arg(scale.x(), scale.y(), scale.z()));
+    pJoltShape->SetWorldTransform(RVec3Arg(translation.x(), translation.y(), translation.z()), joltRotation, Vec3Arg(scale.x(), scale.y(), scale.z()));
     
 }
 
@@ -167,7 +165,7 @@ void SysJolt::find_shapes_recurse(
     // Add jolt shape if exists
     if (rCtxWorld.m_shapes.contains(ent))
     {
-        Ref<TransformedShape> rShape
+        TransformedShapePtr_t& pShape
                 = rCtxWorld.m_shapes.get(ent);
 
         // Set transform relative to root body
@@ -178,9 +176,9 @@ void SysJolt::find_shapes_recurse(
         //         = (rCtxPhys.m_shape[ent] != EShape::Cylinder)
         //         ? transform : transform * Matrix4::rotationZ(90.0_degf);
 
-        SysJolt::orient_shape(rShape, rCtxPhys.m_shape[ent], transform.translation(), transform.rotation(), transform.scaling());
-        Ref<Shape> rScaledShape = rShape->mShape->ScaleShape(Vec3(rShape->mShapeScale)).Get();
-        pCompound.AddShape(rShape->mShapePositionCOM, rShape->mShapeRotation, rScaledShape);
+        SysJolt::orient_shape(pShape, rCtxPhys.m_shape[ent], transform.translation(), transform.rotation(), transform.scaling());
+        Ref<Shape> rScaledShape = pShape->mShape->ScaleShape(Vec3(pShape->mShapeScale)).Get();
+        pCompound.AddShape(pShape->mShapePositionCOM, pShape->mShapeRotation, rScaledShape);
     }
 
     if ( ! rCtxPhys.m_hasColliders.contains(ent) )

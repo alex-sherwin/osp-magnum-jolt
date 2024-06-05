@@ -57,6 +57,11 @@ Session setup_jolt(
         Session const&              commonScene,
         Session const&              physics)
 {
+    //Mandatory Jolt setup steps (start of program)
+    ACtxJoltWorld::initJoltGlobal();
+	JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
+
+
     OSP_DECLARE_GET_DATA_IDS(scene,         TESTAPP_DATA_SCENE);
     OSP_DECLARE_GET_DATA_IDS(commonScene,   TESTAPP_DATA_COMMON_SCENE);
     OSP_DECLARE_GET_DATA_IDS(physics,       TESTAPP_DATA_PHYSICS);
@@ -205,21 +210,23 @@ Session setup_phys_shapes_jolt(
             ActiveEnt const root    = rPhysShapes.m_ents[i * 2];
             ActiveEnt const child   = rPhysShapes.m_ents[i * 2 + 1];
 
-            Ref<TransformedShape> shape = SysJolt::create_primitive(rJolt, spawn.m_shape);
-            SysJolt::orient_shape(shape, spawn.m_shape, spawn.m_position, Matrix3{}, spawn.m_size);
+            TransformedShapePtr_t pShape = SysJolt::create_primitive(rJolt, spawn.m_shape);
+            SysJolt::orient_shape(pShape, spawn.m_shape, spawn.m_position, Matrix3{}, spawn.m_size);
             
             OspBodyId const bodyId = rJolt.m_bodyIds.create();
             SysJolt::resize_body_data(rJolt);
 
-            BodyCreationSettings bodyCreation(shape->mShape, shape->mShapePositionCOM, shape->mShapeRotation, EMotionType::Dynamic, Layers::MOVING);
-            MassProperties massProp;
+            BodyCreationSettings bodyCreation(pShape->mShape, pShape->mShapePositionCOM, pShape->mShapeRotation, EMotionType::Dynamic, Layers::MOVING);
             
-            //Vector3 const inertia = collider_inertia_tensor(spawn.m_shape, spawn.m_size, spawn.m_mass);
-            massProp.mMass = spawn.m_mass; 
-            //massProp.mInertia = Mat44::sScale(Vec3Arg(inertia.x(), inertia.y(), inertia.z()));
-            bodyCreation.mMassPropertiesOverride = massProp;
-            bodyCreation.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
-
+            if (spawn.m_mass > 0.0f) 
+            { 
+                MassProperties massProp;
+                //Vector3 const inertia = collider_inertia_tensor(spawn.m_shape, spawn.m_size, spawn.m_mass);
+                massProp.mMass = spawn.m_mass; 
+                //massProp.mInertia = Mat44::sScale(Vec3Arg(inertia.x(), inertia.y(), inertia.z()));
+                bodyCreation.mMassPropertiesOverride = massProp;
+                bodyCreation.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
+            }
             PhysicsSystem *pJoltWorld = rJolt.m_world.get();
             BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
@@ -250,22 +257,22 @@ void compound_collect_recurse(
 
     if (shape != EShape::None)
     {
-        
-        Ref<TransformedShape> rShape = rCtxWorld.m_shapes.contains(ent)
+        bool entExists = rCtxWorld.m_shapes.contains(ent);
+        TransformedShapePtr_t& pShape = entExists
                                ? rCtxWorld.m_shapes.get(ent)
                                : rCtxWorld.m_shapes.emplace(ent);
 
-        if (rShape.GetPtr() == nullptr)
+        if (!entExists)
         {
-            rShape = SysJolt::create_primitive(rCtxWorld, shape);
+            pShape = SysJolt::create_primitive(rCtxWorld, shape);
         }
 
-        SysJolt::orient_shape(rShape, shape, transform.translation(), transform.rotation(), transform.scaling());
+        SysJolt::orient_shape(pShape, shape, transform.translation(), transform.rotation(), transform.scaling());
         //scale the shape itself
-        Ref<Shape> scaledShape = rShape->mShape->ScaleShape(rShape->GetShapeScale()).Get();
+        Ref<Shape> scaledShape = pShape->mShape->ScaleShape(pShape->GetShapeScale()).Get();
 
         //and add it to the compound shape
-        pCompound.AddShape(rShape->mShapePositionCOM, rShape->mShapeRotation, scaledShape);
+        pCompound.AddShape(pShape->mShapePositionCOM, pShape->mShapeRotation, scaledShape);
     }
 
     if ( ! rCtxPhys.m_hasColliders.contains(ent) )

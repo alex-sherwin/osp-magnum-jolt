@@ -93,7 +93,7 @@ public:
     static void remove_components(
             ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcept;
 
-    [[nodiscard]] static Ref<TransformedShape> create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape);
+    [[nodiscard]] static TransformedShapePtr_t create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape);
 
     template<typename IT_T>
     static void update_delete(
@@ -107,8 +107,8 @@ public:
     }
 
     static void orient_shape(
-            Ref<TransformedShape>&  jolt_shape,
-            osp::EShape             osp_shape,
+            TransformedShapePtr_t&  rJoltShape,
+            osp::EShape             ospShape,
             osp::Vector3 const&     translation,
             osp::Matrix3 const&     rotation,
             osp::Vector3 const&     scale);

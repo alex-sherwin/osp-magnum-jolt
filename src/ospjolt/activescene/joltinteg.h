@@ -38,18 +38,55 @@
 #include <Jolt/Physics/PhysicsSystem.h>
 #include <Jolt/Physics/Collision/Shape/BoxShape.h>
 #include <Jolt/Physics/Collision/Shape/SphereShape.h>
+#include <Jolt/Physics/Collision/Shape/CylinderShape.h>
 #include <Jolt/Physics/Body/BodyCreationSettings.h>
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Collision/Shape/CompoundShape.h>
 #include <Jolt/Physics/Collision/Shape/MutableCompoundShape.h>
+#include <Jolt/Core/JobSystemSingleThreaded.h>
 
 #include <longeron/id_management/registry_stl.hpp>
 #include <longeron/id_management/id_set_stl.hpp>
 
 #include <entt/core/any.hpp>
-#include <JobSystemSingleThreaded.h>
 
+#include <iostream>
+#include <cstdarg>
+#include <thread>
+
+// Callback for traces, connect this to your own trace function if you have one
+static void TraceImpl(const char *inFMT, ...)
+{
+	// Format the message
+	va_list list;
+	va_start(list, inFMT);
+	char buffer[1024];
+	vsnprintf(buffer, sizeof(buffer), inFMT, list);
+	va_end(list);
+
+	// Print to the TTY
+	std::cout << buffer << std::endl;
+}
+
+#ifdef JPH_ENABLE_ASSERTS
+
+// Callback for asserts, connect this to your own assert handler if you have one
+static bool AssertFailedImpl(const char *inExpression, const char *inMessage, const char *inFile, uint inLine)
+{
+	// Print to the TTY
+	std::cout << inFile << ":" << inLine << ": (" << inExpression << ") " << (inMessage != nullptr? inMessage : "") << std::endl;
+
+	// Breakpoint
+	return true;
+};
+
+#endif // JPH_ENABLE_ASSERTS
+
+
+
+//disable common warning triggered by Jolt
+JPH_SUPPRESS_WARNINGS
 
 namespace ospjolt
 {
@@ -123,6 +160,19 @@ public:
 		return mObjectToBroadPhase[inLayer];
 	}
 
+#if defined(JPH_EXTERNAL_PROFILE) || defined(JPH_PROFILE_ENABLED)
+	/// Get the user readable name of a broadphase layer (debugging purposes)
+	virtual const char *			GetBroadPhaseLayerName(BroadPhaseLayer inLayer) const override
+	{
+		if (inLayer == BroadPhaseLayers::NON_MOVING) {
+			return "NON_MOVING";
+		}
+		else {
+			return "MOVING";
+		}
+	}
+#endif // JPH_EXTERNAL_PROFILE || JPH_PROFILE_ENABLED
+
 private:
 	BroadPhaseLayer					mObjectToBroadPhase[Layers::NUM_LAYERS];
 };
@@ -146,8 +196,8 @@ public:
 		}
 	}
 };
-
-using ShapeStorage_t = osp::Storage_t<osp::active::ActiveEnt, Ref<TransformedShape>>;
+using TransformedShapePtr_t = std::unique_ptr<TransformedShape>;
+using ShapeStorage_t = osp::Storage_t<osp::active::ActiveEnt, TransformedShapePtr_t>;
 
 /**
  * @brief Represents an instance of a Jolt physics world in the scene
@@ -165,25 +215,46 @@ struct ACtxJoltWorld
     };
     // The default values are the one suggested in the Jolt hello world exemple for a "real" project.
     // It might be overkill here.
+	//TODO temp allocator
     ACtxJoltWorld(  
                     uint maxBodies = 65536, 
                     uint numBodyMutexes = 0, 
                     uint maxBodyPairs = 65536, 
                     uint maxContactConstraints = 10240
-                ) : m_temp_allocator(10 * 1024 * 1024), 
-                m_joltJobSystem(std::make_unique<JobSystemSingleThreaded>(16)) //TODO multithreading
+                ) : m_world(std::make_unique<PhysicsSystem>()), 
+				    m_joltJobSystem(std::make_unique<JobSystemSingleThreaded>(cMaxPhysicsJobs)) //TODO multithreading
     {
-        m_world.get()->Init(maxBodies, 
+        m_world->Init(maxBodies, 
                     numBodyMutexes, 
                     maxBodyPairs, 
                     maxContactConstraints, 
-                    m_bPLInterface, 
+                    m_bPLInterface, 	
                     m_objectVsBPLFilter, 
                     m_objectLayerFilter);
     }
 
+	static void initJoltGlobal() 
+	{
+	
+		RegisterDefaultAllocator();
 
-    TempAllocatorImpl                               m_temp_allocator;
+		// Install trace and assert callbacks
+		Trace = TraceImpl;
+		JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
+
+		// Create a factory, this class is responsible for creating instances of classes based on their name or hash and is mainly used for deserialization of saved data.
+		// It is not directly used in this example but still required.
+		Factory::sInstance = new Factory();
+
+		// Register all physics types with the factory and install their collision handlers with the CollisionDispatch class.
+		// If you have your own custom shape types you probably need to register their handlers with the CollisionDispatch before calling this function.
+		// If you implement your own default material (PhysicsMaterial::sDefault) make sure to initialize it before this function or else this function will create one for you.
+		RegisterTypes();
+
+	}
+
+
+    TempAllocatorMalloc                             m_temp_allocator;
     ObjectLayerPairFilterImpl                       m_objectLayerFilter;
     BPLayerInterfaceImpl                            m_bPLInterface;
     ObjectVsBroadPhaseLayerFilterImpl               m_objectVsBPLFilter;
