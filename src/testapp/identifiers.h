@@ -304,6 +304,22 @@ struct PlNewton
     idAcceleration
 
 
+#define TESTAPP_DATA_JOLT 1, \
+    idJolt
+struct PlJolt
+{
+    PipelineDef<EStgCont> joltBody           {"joltBody"};
+};
+
+#define TESTAPP_DATA_JOLT_FORCES 1, \
+    idJoltFactors
+
+
+
+#define TESTAPP_DATA_JOLT_ACCEL 1, \
+    idAcceleration
+
+
 
 #define TESTAPP_DATA_ROCKETS_NWT 1, \
     idRocketsNwt
