@@ -56,7 +56,7 @@ public:
      * @brief Respond to scene origin shifts by translating all rigid bodies
      *
      * @param rCtxPhys      [ref] Generic physics context with m_originTranslate
-     * @param rCtxWorld     [ref] Newton World
+     * @param rCtxWorld     [ref] Jolt World
      */
     static void update_translate(
             ACtxPhysics& rCtxPhys,
@@ -79,7 +79,7 @@ public:
      *
      * @param rCtxPhys      [ref] Generic Physics context. Updates linear and angular velocity.
      * @param rCtxWorld     [ref] Jolt world to update
-     * @param timestep      [in] Time to step world, passed to Newton update
+     * @param timestep      [in] Time to step world, passed to Jolt update
      * @param rScnGraph     [ref] The active scene graph
      * @param rTf           [ref] Relative transforms used by rigid bodies
      */
@@ -113,6 +113,15 @@ public:
             osp::Matrix3 const&     rotation,
             osp::Vector3 const&     scale);
 
+    static OspBodyId get_userdata_bodyid(BodyInterface& bodyInterface, JoltBodyId const body)
+    {
+        return reinterpret_cast<std::uintptr_t>(bodyInterface.GetUserData(body));
+    }
+
+    static void set_userdata_bodyid(BodyInterface& bodyInterface, JoltBodyId const joltBody, OspBodyId const ospBody)
+    {
+        return bodyInterface.SetUserData(joltBody, reinterpret_cast<uint64_t>(std::uintptr_t(ospBody)));
+    }
 private:
 
     /**
@@ -120,7 +129,7 @@ private:
      *        a Jolt Compound Shape
      *
      * @param rCtxPhys      [in] Generic Physics context.
-     * @param rCtxWorld     [ref] Newton world
+     * @param rCtxWorld     [ref] Jolt world
      * @param rHier         [in] Storage for hierarchy components
      * @param rTf           [in] Storage for relative hierarchy transforms
      * @param ent           [in] Entity to search

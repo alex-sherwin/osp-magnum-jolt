@@ -30,7 +30,7 @@
 #include "sessions/common.h"
 #include "sessions/magnum.h"
 #include "sessions/misc.h"
-#include "sessions/newton.h"
+#include "sessions/jolt.h"
 #include "sessions/physics.h"
 #include "sessions/shapes.h"
 #include "sessions/terrain.h"
@@ -131,7 +131,7 @@ static ScenarioMap_t make_scenarios()
     add_scenario("physics", "Newton Dynamics integration test scenario",
                  [] (TestApp& rTestApp) -> RendererSetupFunc_t
     {
-        #define SCENE_SESSIONS      scene, commonScene, physics, physShapes, droppers, bounds, newton, nwtGravSet, nwtGrav, physShapesNwt
+        #define SCENE_SESSIONS      scene, commonScene, physics, physShapes, droppers, bounds, jolt, joltGravSet, joltGrav, physShapesJolt
         #define RENDERER_SESSIONS   sceneRenderer, magnumScene, cameraCtrl, cameraFree, shVisual, shFlat, shPhong, camThrow, shapeDraw, cursor
 
         using namespace testapp::scenes;
@@ -152,10 +152,10 @@ static ScenarioMap_t make_scenarios()
         droppers        = setup_droppers            (builder, rTopData, scene, commonScene, physShapes);
         bounds          = setup_bounds              (builder, rTopData, scene, commonScene, physShapes);
 
-        newton          = setup_newton              (builder, rTopData, scene, commonScene, physics);
-        nwtGravSet      = setup_newton_factors      (builder, rTopData);
-        nwtGrav         = setup_newton_force_accel  (builder, rTopData, newton, nwtGravSet, sc_gravityForce);
-        physShapesNwt   = setup_phys_shapes_newton  (builder, rTopData, commonScene, physics, physShapes, newton, nwtGravSet);
+        jolt          = setup_jolt              (builder, rTopData, scene, commonScene, physics);
+        joltGravSet      = setup_jolt_factors      (builder, rTopData);
+        joltGrav         = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, sc_gravityForce);
+        physShapesJolt   = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
 
         add_floor(rTopData, physShapes, sc_matVisualizer, defaultPkg, 4);
 
@@ -197,10 +197,10 @@ static ScenarioMap_t make_scenarios()
     add_scenario("vehicles", "Physics scenario but with Vehicles",
                  [] (TestApp& rTestApp) -> RendererSetupFunc_t
     {
-        #define SCENE_SESSIONS      scene, commonScene, physics, physShapes, droppers, bounds, newton, nwtGravSet, nwtGrav, physShapesNwt, \
+        #define SCENE_SESSIONS      scene, commonScene, physics, physShapes, droppers, bounds, jolt, joltGravSet, joltGrav, physShapesJolt, \
                                     prefabs, parts, vehicleSpawn, signalsFloat, \
-                                    vehicleSpawnVB, vehicleSpawnRgd, vehicleSpawnNwt, \
-                                    testVehicles, machRocket, machRcsDriver, nwtRocketSet, rocketsNwt
+                                    vehicleSpawnVB, vehicleSpawnRgd, vehicleSpawnJolt, \
+                                    testVehicles, machRocket, machRcsDriver, joltRocketSet, rocketsJolt
         #define RENDERER_SESSIONS   sceneRenderer, magnumScene, cameraCtrl, shVisual, shFlat, shPhong, camThrow, shapeDraw, cursor, \
                                     prefabDraw, vehicleDraw, vehicleCtrl, cameraVehicle, thrustIndicator
 
@@ -231,13 +231,13 @@ static ScenarioMap_t make_scenarios()
         machRocket      = setup_mach_rocket         (builder, rTopData, scene, parts, signalsFloat);
         machRcsDriver   = setup_mach_rcsdriver      (builder, rTopData, scene, parts, signalsFloat);
 
-        newton          = setup_newton              (builder, rTopData, scene, commonScene, physics);
-        nwtGravSet      = setup_newton_factors      (builder, rTopData);
-        nwtGrav         = setup_newton_force_accel  (builder, rTopData, newton, nwtGravSet, sc_gravityForce);
-        physShapesNwt   = setup_phys_shapes_newton  (builder, rTopData, commonScene, physics, physShapes, newton, nwtGravSet);
-        vehicleSpawnNwt = setup_vehicle_spawn_newton(builder, rTopData, application, commonScene, physics, prefabs, parts, vehicleSpawn, newton);
-        nwtRocketSet    = setup_newton_factors      (builder, rTopData);
-        rocketsNwt      = setup_rocket_thrust_newton(builder, rTopData, scene, commonScene, physics, prefabs, parts, signalsFloat, newton, nwtRocketSet);
+        jolt          = setup_jolt              (builder, rTopData, scene, commonScene, physics);
+        joltGravSet      = setup_jolt_factors      (builder, rTopData);
+        joltGrav         = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, sc_gravityForce);
+        physShapesJolt   = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
+        vehicleSpawnJolt = setup_vehicle_spawn_jolt(builder, rTopData, application, commonScene, physics, prefabs, parts, vehicleSpawn, jolt);
+        joltRocketSet    = setup_jolt_factors      (builder, rTopData);
+        rocketsJolt      = setup_rocket_thrust_jolt(builder, rTopData, scene, commonScene, physics, prefabs, parts, signalsFloat, jolt, joltRocketSet);
 
         OSP_DECLARE_GET_DATA_IDS(vehicleSpawn,   TESTAPP_DATA_VEHICLE_SPAWN);
         OSP_DECLARE_GET_DATA_IDS(vehicleSpawnVB, TESTAPP_DATA_VEHICLE_SPAWN_VB);
@@ -376,7 +376,7 @@ static ScenarioMap_t make_scenarios()
     add_scenario("universe", "Universe test scenario with very unrealistic planets",
                  [] (TestApp& rTestApp) -> RendererSetupFunc_t
     {
-        #define SCENE_SESSIONS      scene, commonScene, physics, physShapes, droppers, bounds, newton, nwtGravSet, nwtGrav, physShapesNwt, uniCore, uniScnFrame, uniTestPlanets
+        #define SCENE_SESSIONS      scene, commonScene, physics, physShapes, droppers, bounds, jolt, joltGravSet, joltGrav, physShapesJolt, uniCore, uniScnFrame, uniTestPlanets
         #define RENDERER_SESSIONS   sceneRenderer, magnumScene, cameraCtrl, cameraFree, shVisual, shFlat, shPhong, camThrow, shapeDraw, cursor, planetsDraw
 
         using namespace testapp::scenes;
@@ -397,10 +397,10 @@ static ScenarioMap_t make_scenarios()
         droppers        = setup_droppers            (builder, rTopData, scene, commonScene, physShapes);
         bounds          = setup_bounds              (builder, rTopData, scene, commonScene, physShapes);
 
-        newton          = setup_newton              (builder, rTopData, scene, commonScene, physics);
-        nwtGravSet      = setup_newton_factors      (builder, rTopData);
-        nwtGrav         = setup_newton_force_accel  (builder, rTopData, newton, nwtGravSet, Vector3{0.0f, 0.0f, -9.81f});
-        physShapesNwt   = setup_phys_shapes_newton  (builder, rTopData, commonScene, physics, physShapes, newton, nwtGravSet);
+        jolt          = setup_jolt              (builder, rTopData, scene, commonScene, physics);
+        joltGravSet      = setup_jolt_factors      (builder, rTopData);
+        joltGrav         = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, Vector3{0.0f, 0.0f, -9.81f});
+        physShapesJolt   = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
 
         auto const tgApp = application.get_pipelines< PlApplication >();
 

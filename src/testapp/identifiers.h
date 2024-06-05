@@ -324,6 +324,11 @@ struct PlJolt
 #define TESTAPP_DATA_ROCKETS_NWT 1, \
     idRocketsNwt
 
+
+#define TESTAPP_DATA_ROCKETS_JOLT 1, \
+    idRocketsJolt
+
+
 #define TESTAPP_DATA_TERRAIN 2, \
     idTerrainFrame, idTerrain
 struct PlTerrain

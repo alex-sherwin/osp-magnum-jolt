@@ -164,7 +164,7 @@ void SysJolt::find_shapes_recurse(
         Matrix4 const&                          transform,
         CompoundShapeSettings&                  pCompound) noexcept
 {
-    // Add newton collider if exists
+    // Add jolt shape if exists
     if (rCtxWorld.m_shapes.contains(ent))
     {
         Ref<TransformedShape> rShape
