@@ -202,6 +202,7 @@ public:
 //Forward declaration
 struct ACtxJoltWorld;
 
+//The physics callback to sync bodies between osp and jolt
 class PhysicsStepListenerImpl : public PhysicsStepListener
 {
 public:
@@ -231,14 +232,14 @@ struct ACtxJoltWorld
     };
     // The default values are the one suggested in the Jolt hello world exemple for a "real" project.
     // It might be overkill here.
-	//TODO temp allocator
     ACtxJoltWorld(  int threadCount = 2,
                     uint maxBodies = 65536, 
                     uint numBodyMutexes = 0, 
                     uint maxBodyPairs = 65536, 
                     uint maxContactConstraints = 10240
                 ) : m_world(std::make_unique<PhysicsSystem>()), 
-				    m_joltJobSystem(std::make_unique<JobSystemSingleThreaded>(cMaxPhysicsJobs)) //TODO multithreading
+					m_temp_allocator(10 * 1024 * 1024),
+				    m_joltJobSystem(std::make_unique<JobSystemThreadPool>(cMaxPhysicsJobs, cMaxPhysicsBarriers, threadCount))
     {
         m_world->Init(maxBodies, 
                     numBodyMutexes, 
@@ -247,11 +248,14 @@ struct ACtxJoltWorld
                     m_bPLInterface, 	
                     m_objectVsBPLFilter, 
                     m_objectLayerFilter);
+		//gravity is handled on the OSP side
 		m_world->SetGravity(Vec3Arg::sZero());
 		m_listener = std::make_unique<PhysicsStepListenerImpl>(this);
 		m_world->AddStepListener(m_listener.get());
     }
 
+	//mandatory jolt initialization steps
+	//Should this be called on world creation ? not ideal in case of multiple worlds.
 	static void initJoltGlobal() 
 	{
 	
@@ -273,7 +277,7 @@ struct ACtxJoltWorld
 	}
 
 
-    TempAllocatorMalloc                             m_temp_allocator;
+    TempAllocatorImpl                               m_temp_allocator;
     ObjectLayerPairFilterImpl                       m_objectLayerFilter;
     BPLayerInterfaceImpl                            m_bPLInterface;
     ObjectVsBroadPhaseLayerFilterImpl               m_objectVsBPLFilter;
@@ -284,7 +288,6 @@ struct ACtxJoltWorld
 	std::unique_ptr<PhysicsStepListenerImpl>		m_listener;
 
     lgrn::IdRegistryStl<OspBodyId>                  m_bodyIds;
-    //std::vector<JoltBodyPtr_t>                      m_bodyPtrs;
     std::vector<ForceFactors_t>                     m_bodyFactors;
     lgrn::IdSetStl<OspBodyId>                       m_bodyDirty;
 
@@ -294,7 +297,6 @@ struct ACtxJoltWorld
 
     std::vector<ForceFactorFunc>                    m_factors;
 	ShapeStorage_t                                  m_shapes;
-
 
     osp::active::ACompTransformStorage_t            *m_pTransform;
 };

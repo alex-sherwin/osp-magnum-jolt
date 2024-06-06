@@ -38,7 +38,6 @@
 
 namespace ospjolt
 {
-//TODO callback to apply forces
 class SysJolt
 {
     using ActiveEnt                 = osp::active::ActiveEnt;
@@ -63,31 +62,17 @@ public:
             ACtxJoltWorld& rCtxWorld) noexcept;
 
     /**
-     * @brief Synchronize generic physics shapes with Jolt bodies
-     *
-     * @param rCtxPhys          [ref] Generic physics context
-     * @param rCtxWorld         [ref] Jolt World
-     * @param rCollidersDirty   [in] Colliders to update
-     */
-    static void update_shapes(
-            ACtxPhysics& rCtxPhys,
-            ACtxJoltWorld& rCtxWorld,
-            std::vector<ActiveEnt> const& shapesDirty) noexcept;
-
-    /**
      * @brief Step the entire Jolt World forward in time
      *
      * @param rCtxPhys      [ref] Generic Physics context. Updates linear and angular velocity.
      * @param rCtxWorld     [ref] Jolt world to update
      * @param timestep      [in] Time to step world, passed to Jolt update
-     * @param rScnGraph     [ref] The active scene graph
      * @param rTf           [ref] Relative transforms used by rigid bodies
      */
     static void update_world(
             ACtxPhysics&                            rCtxPhys,
             ACtxJoltWorld&                          rCtxWorld,
             float                                   timestep,
-            ACtxSceneGraph const&                   rScnGraph,
             osp::active::ACompTransformStorage_t&   rTf) noexcept;
 
     static void remove_components(
@@ -122,7 +107,7 @@ public:
     {
         return bodyInterface.SetUserData(joltBody, static_cast<uint64_t>(ospBody));
     }
-
+    //Get the inverse mass of a jolt body
     static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, JoltBodyId joltBodyId);
     
 private:

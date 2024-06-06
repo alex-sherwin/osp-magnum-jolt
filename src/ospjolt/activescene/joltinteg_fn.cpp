@@ -87,7 +87,6 @@ void SysJolt::update_world(
         ACtxPhysics&                rCtxPhys,
         ACtxJoltWorld&              rCtxWorld,
         float                       timestep,
-        ACtxSceneGraph const&       rScnGraph,
         ACompTransformStorage_t&    rTf) noexcept
 {
     PhysicsSystem *pJoltWorld = rCtxWorld.m_world.get();
@@ -105,7 +104,7 @@ void SysJolt::update_world(
     rCtxWorld.m_pTransform = std::addressof(rTf);
 
     // Update the world
-    pJoltWorld->Update(timestep, 1, &rCtxWorld.m_temp_allocator, rCtxWorld.m_joltJobSystem.get()); //TODO : job system
+    pJoltWorld->Update(timestep, 1, &rCtxWorld.m_temp_allocator, rCtxWorld.m_joltJobSystem.get());
 }
 
 void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcept
@@ -143,7 +142,7 @@ TransformedShapePtr_t SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::E
         joltShape = (Shape *) new SphereShape(1.0f);
         break;
     }
-    return TransformedShapePtr_t(new TransformedShape(RVec3::sZero(), Quat::sZero(), joltShape, BodyID(), SubShapeIDCreator()));
+    return std::make_unique<TransformedShape>(RVec3::sZero(), Quat::sZero(), joltShape, BodyID(), SubShapeIDCreator());
 }
 
 void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospShape, osp::Vector3 const &translation, osp::Matrix3 const &rotation, osp::Vector3 const &scale)
@@ -161,7 +160,6 @@ void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospSha
 float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem, JoltBodyId joltBodyId)
 {
     const BodyLockInterfaceNoLock& lockInterface = physicsSystem.GetBodyLockInterfaceNoLock(); 
-    // Scoped lock
     {
         JPH::BodyLockRead lock(lockInterface, joltBodyId);
         if (lock.Succeeded()) // body_id may no longer be valid
@@ -186,8 +184,7 @@ void SysJolt::find_shapes_recurse(
     // Add jolt shape if exists
     if (rCtxWorld.m_shapes.contains(ent))
     {
-        TransformedShapePtr_t& pShape
-                = rCtxWorld.m_shapes.get(ent);
+        TransformedShapePtr_t& pShape = rCtxWorld.m_shapes.get(ent);
 
         // Set transform relative to root body
 
@@ -201,7 +198,7 @@ void SysJolt::find_shapes_recurse(
         return;
     }
 
-    // Recurse into children if there are more colliders
+    // Recurse into children if there are more shapes
     for (ActiveEnt child : SysSceneGraph::children(rScnGraph, ent))
     {
         if (rTf.contains(child))
@@ -218,7 +215,9 @@ void SysJolt::find_shapes_recurse(
 
 }
 
-//TODO this is locking and single threaded (for the physics simulation). Is it bad ? 
+//TODO this is locking on all bodies. Is it bad ?
+//The easy fix is to provide multiple step listeners for disjoint sets of bodies, which can then run in parallel.
+//It might not be worth it considering this function should be quite fast.
 void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorld)
 {
     //no lock as all bodies are already locked

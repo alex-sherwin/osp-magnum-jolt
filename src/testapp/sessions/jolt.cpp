@@ -99,7 +99,7 @@ Session setup_jolt(
         .args({             idBasic,             idPhys,              idJolt,           idDeltaTimeIn })
         .func([] (ACtxBasic& rBasic, ACtxPhysics& rPhys, ACtxJoltWorld& rJolt, float const deltaTimeIn, WorkerContext ctx) noexcept
     {
-        SysJolt::update_world(rPhys, rJolt, deltaTimeIn, rBasic.m_scnGraph, rBasic.m_transform);
+        SysJolt::update_world(rPhys, rJolt, deltaTimeIn, rBasic.m_transform);
     });
 
     top_emplace< ACtxJoltWorld >(topData, idJolt, 2);
@@ -220,11 +220,11 @@ Session setup_phys_shapes_jolt(
             if (spawn.m_mass > 0.0f) 
             { 
                 MassProperties massProp;
-                //Vector3 const inertia = collider_inertia_tensor(spawn.m_shape, spawn.m_size, spawn.m_mass);
+                Vector3 const inertia = collider_inertia_tensor(spawn.m_shape, spawn.m_size, spawn.m_mass);
                 massProp.mMass = spawn.m_mass; 
-                //massProp.mInertia = Mat44::sScale(Vec3Arg(inertia.x(), inertia.y(), inertia.z()));
+                massProp.mInertia = Mat44::sScale(Vec3Arg(inertia.x(), inertia.y(), inertia.z()));
                 bodyCreation.mMassPropertiesOverride = massProp;
-                bodyCreation.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
+                bodyCreation.mOverrideMassProperties = EOverrideMassProperties::MassAndInertiaProvided;
             }
             else
             {   
@@ -254,7 +254,7 @@ void compound_collect_recurse(
         ACtxBasic const&        rBasic,
         ActiveEnt               ent,
         Matrix4 const&          transform,
-        CompoundShapeSettings&  pCompound)
+        CompoundShapeSettings&  rCompound)
 {
     EShape const shape = rCtxPhys.m_shape[ent];
 
@@ -275,7 +275,7 @@ void compound_collect_recurse(
         Ref<Shape> scaledShape = pShape->mShape->ScaleShape(pShape->GetShapeScale()).Get();
 
         //and add it to the compound shape
-        pCompound.AddShape(pShape->mShapePositionCOM, pShape->mShapeRotation, scaledShape);
+        rCompound.AddShape(pShape->mShapePositionCOM, pShape->mShapeRotation, scaledShape);
     }
 
     if ( ! rCtxPhys.m_hasColliders.contains(ent) )
@@ -293,7 +293,7 @@ void compound_collect_recurse(
             Matrix4 const childMatrix = transform * rChildTransform.m_transform;
 
             compound_collect_recurse(
-                    rCtxPhys, rCtxWorld, rBasic, child, childMatrix, pCompound);
+                    rCtxPhys, rCtxWorld, rBasic, child, childMatrix, rCompound);
         }
     }
 }
@@ -439,14 +439,14 @@ Session setup_vehicle_spawn_jolt(
             {
                 ActiveEnt const weldEnt = rScnParts.weldToActive[weld];
 
-                MutableCompoundShapeSettings pCompound;
+                MutableCompoundShapeSettings compound;
 
                 rPhys.m_hasColliders.insert(weldEnt);
 
                 // Collect all colliders from hierarchy.
-                compound_collect_recurse( rPhys, rJolt, rBasic, weldEnt, Matrix4{}, pCompound );
+                compound_collect_recurse( rPhys, rJolt, rBasic, weldEnt, Matrix4{}, compound );
 
-                Ref<Shape> compoundShape = pCompound.Create().Get();
+                Ref<Shape> compoundShape = compound.Create().Get();
                 BodyCreationSettings bodyCreation(compoundShape, Vec3Arg::sZero(), Quat::sZero(), EMotionType::Dynamic, Layers::MOVING);
 
                 OspBodyId const bodyId = rJolt.m_bodyIds.create();
