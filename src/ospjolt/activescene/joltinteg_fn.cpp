@@ -67,16 +67,16 @@ void SysJolt::update_translate(ACtxPhysics& rCtxPhys, ACtxJoltWorld& rCtxWorld) 
         BodyIDVector allBodiesIds;
         pJoltWorld->GetBodies(allBodiesIds);
 
-        BodyInterface &body_interface = pJoltWorld->GetBodyInterface();
+        BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
         // Translate every jolt body
         for (JoltBodyId bodyId : allBodiesIds)
         {
-            RVec3 position = body_interface.GetPosition(bodyId);
+            RVec3 position = bodyInterface.GetPosition(bodyId);
             Matrix4 matrix;
             position += RVec3(translate.x(), translate.y(), translate.z());
             //As we are translating the whole world, we don't need to wake up asleep bodies. 
-            body_interface.SetPosition(bodyId, position, EActivation::DontActivate);
+            bodyInterface.SetPosition(bodyId, position, EActivation::DontActivate);
         }
     }
 }
@@ -91,7 +91,7 @@ void SysJolt::update_world(
         ACompTransformStorage_t&    rTf) noexcept
 {
     PhysicsSystem *pJoltWorld = rCtxWorld.m_world.get();
-    BodyInterface &body_interface = pJoltWorld->GetBodyInterface();
+    BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
     // Apply changed velocities
     for (auto const& [ent, vel] : std::exchange(rCtxPhys.m_setVelocity, {}))
@@ -99,7 +99,7 @@ void SysJolt::update_world(
         OspBodyId const ospBodyId     = rCtxWorld.m_entToBody.at(ent);
         JoltBodyId const bodyId     = rCtxWorld.m_ospToJoltBodyId[ospBodyId];
 
-        body_interface.SetLinearVelocity(bodyId, Vec3(vel.x(), vel.y(), vel.z()));
+        bodyInterface.SetLinearVelocity(bodyId, Vec3(vel.x(), vel.y(), vel.z()));
     }
 
     rCtxWorld.m_pTransform = std::addressof(rTf);
@@ -115,6 +115,7 @@ void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcep
     if (itBodyId != rCtxWorld.m_entToBody.end())
     {
         OspBodyId const bodyId = itBodyId->second;
+        rCtxWorld.m_bodyIds.remove(bodyId);
         rCtxWorld.m_bodyToEnt[bodyId] = lgrn::id_null<ActiveEnt>();
         rCtxWorld.m_entToBody.erase(itBodyId);
     }
@@ -152,6 +153,21 @@ void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospSha
     
 }
 
+float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem, JoltBodyId joltBodyId)
+{
+    const BodyLockInterfaceNoLock& lockInterface = physicsSystem.GetBodyLockInterfaceNoLock(); 
+    // Scoped lock
+    {
+        JPH::BodyLockRead lock(lockInterface, joltBodyId);
+        if (lock.Succeeded()) // body_id may no longer be valid
+        {
+            const JPH::Body &body = lock.GetBody();
+
+            return body.GetMotionProperties()->GetInverseMass();
+        }
+    }
+    return 0.0f;
+}
 
 void SysJolt::find_shapes_recurse(
         ACtxPhysics const&                      rCtxPhys,
@@ -201,4 +217,39 @@ void SysJolt::find_shapes_recurse(
 
     }
 
+}
+
+//TODO this is locking and single threaded (for the physics simulation). Is it bad ? 
+void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorld)
+{
+    //no lock as all bodies are already locked
+    BodyInterface &bodyInterface = rJoltWorld.GetBodyInterfaceNoLock();
+    for (OspBodyId ospBody : m_context->m_bodyIds)
+    {
+        JoltBodyId joltBody = m_context->m_ospToJoltBodyId[ospBody];
+        if (bodyInterface.GetMotionType(joltBody) != EMotionType::Dynamic) 
+        {
+            continue;
+        }
+
+        //Transform jolt -> osp
+
+        ActiveEnt const ent = m_context->m_bodyToEnt[ospBody];
+        Mat44 worldTranform = bodyInterface.GetWorldTransform(joltBody);
+        worldTranform.StoreFloat4x4((Float4*)m_context->m_pTransform->get(ent).m_transform.data());
+
+        //Force and torque osp -> jolt
+        Vector3 force{0.0f};
+        Vector3 torque{0.0f};
+
+        auto factorBits = lgrn::bit_view(m_context->m_bodyFactors[ospBody]);
+        for (std::size_t const factorIdx : factorBits.ones())
+        {   
+            ACtxJoltWorld::ForceFactorFunc const& factor = m_context->m_factors[factorIdx];
+            factor.m_func(joltBody, ospBody, *m_context, factor.m_userData, force, torque);
+        }
+        Vec3 vel = bodyInterface.GetLinearVelocity(joltBody);
+
+        bodyInterface.AddForceAndTorque(joltBody, Vec3Arg (force.x(), force.y(), force.z()), Vec3Arg(torque.x(), torque.y(), torque.z()));
+    }
 }

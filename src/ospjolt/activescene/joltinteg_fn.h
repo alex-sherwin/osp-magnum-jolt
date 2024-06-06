@@ -122,6 +122,8 @@ public:
     {
         return bodyInterface.SetUserData(joltBody, reinterpret_cast<uint64_t>(std::uintptr_t(ospBody)));
     }
+
+    static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, JoltBodyId joltBodyId);
 private:
 
     /**
@@ -148,4 +150,3 @@ private:
 };
 
 }
-

@@ -150,12 +150,11 @@ osp::Session setup_jolt_force_accel(
         .m_func = [] (JoltBodyId const joltBodyId, OspBodyId const ospBodyID, ACtxJoltWorld const& rJolt, UserData_t data, Vector3& rForce, Vector3& rTorque) noexcept
         {
             PhysicsSystem *pJoltWorld = rJolt.m_world.get();
-            BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
-            float mass = bodyInterface.GetShape(joltBodyId)->GetMassProperties().mMass;
+            float inv_mass = SysJolt::get_inverse_mass_no_lock(*pJoltWorld, joltBodyId);
 
             auto const& force = *reinterpret_cast<Vector3 const*>(data[0]);
-            rForce += force * mass;
+            rForce += force / inv_mass;
         },
         .m_userData = {&rAccel}
     };
@@ -227,9 +226,13 @@ Session setup_phys_shapes_jolt(
                 bodyCreation.mMassPropertiesOverride = massProp;
                 bodyCreation.mOverrideMassProperties = EOverrideMassProperties::CalculateInertia;
             }
+            else
+            {   
+                bodyCreation.mMotionType = EMotionType::Static;
+                bodyCreation.mObjectLayer = Layers::NON_MOVING;
+            }
             PhysicsSystem *pJoltWorld = rJolt.m_world.get();
             BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
-
             JoltBodyId joltBodyId = bodyInterface.CreateAndAddBody(bodyCreation, EActivation::Activate);
 
             rJolt.m_ospToJoltBodyId[bodyId] = joltBodyId;
@@ -627,7 +630,8 @@ static void rocket_thrust_force(JoltBodyId const joltBody, OspBodyId const ospBo
     auto &rBodyRockets = rRocketsJolt.m_bodyRockets[ospBody];
 
     PhysicsSystem *pJoltWorld = rJolt.m_world.get();
-    BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
+    //no lock as all bodies are locked in callbacks
+    BodyInterface &bodyInterface = pJoltWorld->GetBodyInterfaceNoLock();
 
     if (rBodyRockets.empty())
     {
@@ -637,7 +641,7 @@ static void rocket_thrust_force(JoltBodyId const joltBody, OspBodyId const ospBo
     Quat joltQuat = bodyInterface.GetRotation(joltBody);
     Quaternion const rot{{joltQuat.GetX(), joltQuat.GetY(), joltQuat.GetZ()}, joltQuat.GetW()};
 
-    RVec3 joltCom = bodyInterface.GetCenterOfMassPosition(joltBody);
+    RVec3 joltCom = bodyInterface.GetCenterOfMassPosition(joltBody) - bodyInterface.GetPosition(joltBody);
     Vector3 com(joltCom.GetX(), joltCom.GetY(), joltCom.GetZ());
 
     for (BodyRocket const& bodyRocket : rBodyRockets)

@@ -44,6 +44,7 @@
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Collision/Shape/CompoundShape.h>
 #include <Jolt/Physics/Collision/Shape/MutableCompoundShape.h>
+#include <Jolt/Physics/PhysicsStepListener.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
 
 #include <longeron/id_management/registry_stl.hpp>
@@ -196,6 +197,20 @@ public:
 		}
 	}
 };
+
+//Forward declaration
+struct ACtxJoltWorld;
+
+class PhysicsStepListenerImpl : public PhysicsStepListener
+{
+public:
+    PhysicsStepListenerImpl(ACtxJoltWorld* pContext) : m_context(pContext) {};
+    virtual void OnStep(float inDeltaTime, PhysicsSystem& inPhysicsSystem) override;
+
+private:
+    ACtxJoltWorld* m_context;
+};
+
 using TransformedShapePtr_t = std::unique_ptr<TransformedShape>;
 using ShapeStorage_t = osp::Storage_t<osp::active::ActiveEnt, TransformedShapePtr_t>;
 
@@ -216,7 +231,7 @@ struct ACtxJoltWorld
     // The default values are the one suggested in the Jolt hello world exemple for a "real" project.
     // It might be overkill here.
 	//TODO temp allocator
-    ACtxJoltWorld(  
+    ACtxJoltWorld(  int threadCount = 2,
                     uint maxBodies = 65536, 
                     uint numBodyMutexes = 0, 
                     uint maxBodyPairs = 65536, 
@@ -231,6 +246,9 @@ struct ACtxJoltWorld
                     m_bPLInterface, 	
                     m_objectVsBPLFilter, 
                     m_objectLayerFilter);
+		m_world->SetGravity(Vec3Arg::sZero());
+		m_listener = std::make_unique<PhysicsStepListenerImpl>(this);
+		m_world->AddStepListener(m_listener.get());
     }
 
 	static void initJoltGlobal() 
@@ -262,6 +280,8 @@ struct ACtxJoltWorld
 
     std::unique_ptr<PhysicsSystem>                  m_world;
 
+	std::unique_ptr<PhysicsStepListenerImpl>		m_listener;
+
     lgrn::IdRegistryStl<OspBodyId>                  m_bodyIds;
     //std::vector<JoltBodyPtr_t>                      m_bodyPtrs;
     std::vector<ForceFactors_t>                     m_bodyFactors;
@@ -274,8 +294,10 @@ struct ACtxJoltWorld
     std::vector<ForceFactorFunc>                    m_factors;
 	ShapeStorage_t                                  m_shapes;
 
+
     osp::active::ACompTransformStorage_t            *m_pTransform;
 };
+
 
 
 }
