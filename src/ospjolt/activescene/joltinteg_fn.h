@@ -115,15 +115,16 @@ public:
 
     static OspBodyId get_userdata_bodyid(BodyInterface& bodyInterface, JoltBodyId const body)
     {
-        return reinterpret_cast<std::uintptr_t>(bodyInterface.GetUserData(body));
+        return static_cast<OspBodyId>(bodyInterface.GetUserData(body));
     }
 
     static void set_userdata_bodyid(BodyInterface& bodyInterface, JoltBodyId const joltBody, OspBodyId const ospBody)
     {
-        return bodyInterface.SetUserData(joltBody, reinterpret_cast<uint64_t>(std::uintptr_t(ospBody)));
+        return bodyInterface.SetUserData(joltBody, static_cast<uint64_t>(ospBody));
     }
 
     static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, JoltBodyId joltBodyId);
+    
 private:
 
     /**

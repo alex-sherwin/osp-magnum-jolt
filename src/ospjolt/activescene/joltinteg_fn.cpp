@@ -131,14 +131,16 @@ TransformedShapePtr_t SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::E
         joltShape = (Shape *) new SphereShape(1.0f);
         break;
     case EShape::Box:
-        joltShape =  (Shape *) new BoxShape(Vec3Arg(1.0f, 1.0f, 1.0f));
+        joltShape = (Shape *) new BoxShape(Vec3Arg(1.0f, 1.0f, 1.0f));
         break;
     case EShape::Cylinder:
-        joltShape =  (Shape *) new CylinderShape(1.0f, 2.0f);
+        //cylinder needs to be internally rotated 90° to match with graphics
+        joltShape = (Shape *) new CylinderShape(1.0f, 2.0f);
+        joltShape = (Shape *) new RotatedTranslatedShape(Vec3Arg::sZero(), Quat::sRotation(Vec3::sAxisX(), JPH_PI/2), joltShape);
         break;
     default:
         // TODO: support other shapes, sphere is used for now
-        joltShape =  (Shape *) new SphereShape(1.0f);
+        joltShape = (Shape *) new SphereShape(1.0f);
         break;
     }
     return TransformedShapePtr_t(new TransformedShape(RVec3::sZero(), Quat::sZero(), joltShape, BodyID(), SubShapeIDCreator()));
@@ -148,8 +150,11 @@ void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospSha
 {
     auto rawQuat = Magnum::Quaternion::fromMatrix(rotation).data();
     Quat joltRotation(rawQuat[0], rawQuat[1], rawQuat[2], rawQuat[3]);
+
+    //scale the shape directly
+    pJoltShape->mShape = pJoltShape->mShape->ScaleShape(Vec3Arg(scale.x(), scale.y(), scale.z())).Get();
     
-    pJoltShape->SetWorldTransform(RVec3Arg(translation.x(), translation.y(), translation.z()), joltRotation, Vec3Arg(scale.x(), scale.y(), scale.z()));
+    pJoltShape->SetWorldTransform(RVec3Arg(translation.x(), translation.y(), translation.z()), joltRotation, Vec3Arg(1.0f, 1.0f, 1.0f));
     
 }
 
@@ -185,12 +190,6 @@ void SysJolt::find_shapes_recurse(
                 = rCtxWorld.m_shapes.get(ent);
 
         // Set transform relative to root body
-
-        // cylinder needs to be rotated 90 degrees Z to aligned with Y axis
-        // TODO: replace this with something more sophisticated some time (and re-enable it maybe)
-        // Matrix4 const &colliderTf
-        //         = (rCtxPhys.m_shape[ent] != EShape::Cylinder)
-        //         ? transform : transform * Matrix4::rotationZ(90.0_degf);
 
         SysJolt::orient_shape(pShape, rCtxPhys.m_shape[ent], transform.translation(), transform.rotation(), transform.scaling());
         Ref<Shape> rScaledShape = pShape->mShape->ScaleShape(Vec3(pShape->mShapeScale)).Get();
@@ -236,6 +235,7 @@ void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorl
 
         ActiveEnt const ent = m_context->m_bodyToEnt[ospBody];
         Mat44 worldTranform = bodyInterface.GetWorldTransform(joltBody);
+
         worldTranform.StoreFloat4x4((Float4*)m_context->m_pTransform->get(ent).m_transform.data());
 
         //Force and torque osp -> jolt

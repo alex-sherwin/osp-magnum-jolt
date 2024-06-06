@@ -229,7 +229,7 @@ Session setup_phys_shapes_jolt(
             else
             {   
                 bodyCreation.mMotionType = EMotionType::Static;
-                bodyCreation.mObjectLayer = Layers::NON_MOVING;
+                bodyCreation.mObjectLayer = Layers::MOVING;
             }
             PhysicsSystem *pJoltWorld = rJolt.m_world.get();
             BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
@@ -457,29 +457,27 @@ Session setup_vehicle_spawn_jolt(
                 rJolt.m_bodyFactors[bodyId] = {1}; // TODO: temporary
                 rJolt.m_entToBody.emplace(weldEnt, bodyId);
 
-                // float   totalMass = 0.0f;
-                // Vector3 massPos{0.0f};
-                // SysPhysics::calculate_subtree_mass_center(rBasic.m_transform, rPhys, rBasic.m_scnGraph, weldEnt, massPos, totalMass);
+                float   totalMass = 0.0f;
+                Vector3 massPos{0.0f};
+                SysPhysics::calculate_subtree_mass_center(rBasic.m_transform, rPhys, rBasic.m_scnGraph, weldEnt, massPos, totalMass);
 
-                // Vector3 const com = massPos / totalMass;
-                // auto const comToOrigin = Matrix4::translation( - com );
+                Vector3 const com = massPos / totalMass;
+                auto const comToOrigin = Matrix4::translation( - com );
 
-                // Matrix3 inertiaTensor{0.0f};
-                // SysPhysics::calculate_subtree_mass_inertia(rBasic.m_transform, rPhys, rBasic.m_scnGraph, weldEnt, inertiaTensor, comToOrigin);
+                Matrix3 inertiaTensor{0.0f};
+                SysPhysics::calculate_subtree_mass_inertia(rBasic.m_transform, rPhys, rBasic.m_scnGraph, weldEnt, inertiaTensor, comToOrigin);
 
-                // Matrix4 const inertiaTensorMat4{inertiaTensor};
-                //NewtonBodySetMassMatrix(pBody, 0.0f, 1.0f, 1.0f, 1.0f);
+                Matrix4 const inertiaTensorMat4{inertiaTensor};
 
-                // MassProperties massProp;
-                // massProp.mMass = totalMass;
-                // //TODO checks this works.
-                // massProp.mInertia = Mat44::sLoadFloat4x4((Float4*) inertiaTensorMat4.data());
+                MassProperties massProp;
+                massProp.mMass = totalMass;
+                massProp.mInertia = Mat44::sLoadFloat4x4((Float4*) inertiaTensorMat4.data());
 
-                // bodyCreation.mMassPropertiesOverride = massProp;
-                // bodyCreation.mOverrideMassProperties = EOverrideMassProperties::MassAndInertiaProvided;
+                bodyCreation.mMassPropertiesOverride = massProp;
+                bodyCreation.mOverrideMassProperties = EOverrideMassProperties::MassAndInertiaProvided;
 
-                // bodyCreation.mLinearDamping = 0.0f;
-                // bodyCreation.mAngularDamping = 0.0f;
+                bodyCreation.mLinearDamping = 0.0f;
+                bodyCreation.mAngularDamping = 0.0f;
 
                 bodyCreation.mPosition = Vec3(toInit.position.x(), toInit.position.y(), toInit.position.z());
 
@@ -493,6 +491,8 @@ Session setup_vehicle_spawn_jolt(
 
                 JoltBodyId joltBody = bodyInterface.CreateAndAddBody(bodyCreation, EActivation::Activate);
                 SysJolt::set_userdata_bodyid(bodyInterface, joltBody, bodyId);
+
+                rJolt.m_ospToJoltBodyId[bodyId] = joltBody;
 
                 rPhys.m_setVelocity.emplace_back(weldEnt, toInit.velocity);
             });
@@ -662,7 +662,6 @@ static void rocket_thrust_force(JoltBodyId const joltBody, OspBodyId const ospBo
 
         Vector3 const thrustForce = direction * thrustMag;
         Vector3 const thrustTorque = Magnum::Math::cross(offsetRel, thrustForce);
-
         rForce += thrustForce;
         rTorque += thrustTorque;
     }
