@@ -152,10 +152,10 @@ static ScenarioMap_t make_scenarios()
         droppers        = setup_droppers            (builder, rTopData, scene, commonScene, physShapes);
         bounds          = setup_bounds              (builder, rTopData, scene, commonScene, physShapes);
 
-        jolt          = setup_jolt              (builder, rTopData, scene, commonScene, physics);
-        joltGravSet      = setup_jolt_factors      (builder, rTopData);
-        joltGrav         = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, sc_gravityForce);
-        physShapesJolt   = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
+        jolt            = setup_jolt              (builder, rTopData, scene, commonScene, physics);
+        joltGravSet     = setup_jolt_factors      (builder, rTopData);
+        joltGrav        = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, sc_gravityForce);
+        physShapesJolt  = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
 
         add_floor(rTopData, physShapes, sc_matVisualizer, defaultPkg, 4);
 
@@ -214,24 +214,24 @@ static ScenarioMap_t make_scenarios()
 
         auto & [SCENE_SESSIONS] = resize_then_unpack<22>(rTestApp.m_scene.m_sessions);
 
-        scene           = setup_scene               (builder, rTopData, application);
-        commonScene     = setup_common_scene        (builder, rTopData, scene, application, defaultPkg);
-        physics         = setup_physics             (builder, rTopData, scene, commonScene);
-        physShapes      = setup_phys_shapes         (builder, rTopData, scene, commonScene, physics, sc_matPhong);
-        droppers        = setup_droppers            (builder, rTopData, scene, commonScene, physShapes);
-        bounds          = setup_bounds              (builder, rTopData, scene, commonScene, physShapes);
+        scene            = setup_scene               (builder, rTopData, application);
+        commonScene      = setup_common_scene        (builder, rTopData, scene, application, defaultPkg);
+        physics          = setup_physics             (builder, rTopData, scene, commonScene);
+        physShapes       = setup_phys_shapes         (builder, rTopData, scene, commonScene, physics, sc_matPhong);
+        droppers         = setup_droppers            (builder, rTopData, scene, commonScene, physShapes);
+        bounds           = setup_bounds              (builder, rTopData, scene, commonScene, physShapes);
 
-        prefabs         = setup_prefabs             (builder, rTopData, application, scene, commonScene, physics);
-        parts           = setup_parts               (builder, rTopData, application, scene);
-        signalsFloat    = setup_signals_float       (builder, rTopData, scene, parts);
-        vehicleSpawn    = setup_vehicle_spawn       (builder, rTopData, scene);
-        vehicleSpawnVB  = setup_vehicle_spawn_vb    (builder, rTopData, application, scene, commonScene, prefabs, parts, vehicleSpawn, signalsFloat);
-        testVehicles    = setup_prebuilt_vehicles   (builder, rTopData, application, scene);
+        prefabs          = setup_prefabs             (builder, rTopData, application, scene, commonScene, physics);
+        parts            = setup_parts               (builder, rTopData, application, scene);
+        signalsFloat     = setup_signals_float       (builder, rTopData, scene, parts);
+        vehicleSpawn     = setup_vehicle_spawn       (builder, rTopData, scene);
+        vehicleSpawnVB   = setup_vehicle_spawn_vb    (builder, rTopData, application, scene, commonScene, prefabs, parts, vehicleSpawn, signalsFloat);
+        testVehicles     = setup_prebuilt_vehicles   (builder, rTopData, application, scene);
 
-        machRocket      = setup_mach_rocket         (builder, rTopData, scene, parts, signalsFloat);
-        machRcsDriver   = setup_mach_rcsdriver      (builder, rTopData, scene, parts, signalsFloat);
+        machRocket       = setup_mach_rocket         (builder, rTopData, scene, parts, signalsFloat);
+        machRcsDriver    = setup_mach_rcsdriver      (builder, rTopData, scene, parts, signalsFloat);
 
-        jolt          = setup_jolt              (builder, rTopData, scene, commonScene, physics);
+        jolt             = setup_jolt              (builder, rTopData, scene, commonScene, physics);
         joltGravSet      = setup_jolt_factors      (builder, rTopData);
         joltGrav         = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, sc_gravityForce);
         physShapesJolt   = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
@@ -397,10 +397,10 @@ static ScenarioMap_t make_scenarios()
         droppers        = setup_droppers            (builder, rTopData, scene, commonScene, physShapes);
         bounds          = setup_bounds              (builder, rTopData, scene, commonScene, physShapes);
 
-        jolt          = setup_jolt              (builder, rTopData, scene, commonScene, physics);
-        joltGravSet      = setup_jolt_factors      (builder, rTopData);
-        joltGrav         = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, Vector3{0.0f, 0.0f, -9.81f});
-        physShapesJolt   = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
+        jolt            = setup_jolt              (builder, rTopData, scene, commonScene, physics);
+        joltGravSet     = setup_jolt_factors      (builder, rTopData);
+        joltGrav        = setup_jolt_force_accel  (builder, rTopData, jolt, joltGravSet, Vector3{0.0f, 0.0f, -9.81f});
+        physShapesJolt  = setup_phys_shapes_jolt  (builder, rTopData, commonScene, physics, physShapes, jolt, joltGravSet);
 
         auto const tgApp = application.get_pipelines< PlApplication >();
 

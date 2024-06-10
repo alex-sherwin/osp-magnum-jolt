@@ -47,7 +47,6 @@ class SysJolt
     using ACompTransformStorage_t   = osp::active::ACompTransformStorage_t;
 public:
 
-    using JoltThreadIndex_t = int;
 
     static void resize_body_data(ACtxJoltWorld& rCtxWorld);
 

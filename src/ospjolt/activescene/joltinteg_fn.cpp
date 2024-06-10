@@ -63,7 +63,7 @@ void SysJolt::update_translate(ACtxPhysics& rCtxPhys, ACtxJoltWorld& rCtxWorld) 
     if (Vector3 const translate = std::exchange(rCtxPhys.m_originTranslate, {});
         ! translate.isZero())
     {
-        PhysicsSystem* pJoltWorld = rCtxWorld.m_world.get();
+        PhysicsSystem* pJoltWorld = rCtxWorld.m_pPhysicsSystem.get();
         BodyIDVector allBodiesIds;
         pJoltWorld->GetBodies(allBodiesIds);
 
@@ -89,7 +89,7 @@ void SysJolt::update_world(
         float                       timestep,
         ACompTransformStorage_t&    rTf) noexcept
 {
-    PhysicsSystem *pJoltWorld = rCtxWorld.m_world.get();
+    PhysicsSystem *pJoltWorld = rCtxWorld.m_pPhysicsSystem.get();
     BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
     // Apply changed velocities
@@ -103,8 +103,8 @@ void SysJolt::update_world(
 
     rCtxWorld.m_pTransform = std::addressof(rTf);
 
-    // Update the world
-    pJoltWorld->Update(timestep, 1, &rCtxWorld.m_temp_allocator, rCtxWorld.m_joltJobSystem.get());
+    uint collisionSteps = 1;
+    pJoltWorld->Update(timestep, collisionSteps, &rCtxWorld.m_temp_allocator, rCtxWorld.m_joltJobSystem.get());
 }
 
 void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcept

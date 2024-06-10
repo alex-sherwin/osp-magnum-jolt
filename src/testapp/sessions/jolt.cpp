@@ -59,7 +59,7 @@ Session setup_jolt(
 {
     //Mandatory Jolt setup steps (start of program)
     ACtxJoltWorld::initJoltGlobal();
-	JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
+    JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
 
 
     OSP_DECLARE_GET_DATA_IDS(scene,         TESTAPP_DATA_SCENE);
@@ -149,7 +149,7 @@ osp::Session setup_jolt_force_accel(
     {
         .m_func = [] (JoltBodyId const joltBodyId, OspBodyId const ospBodyID, ACtxJoltWorld const& rJolt, UserData_t data, Vector3& rForce, Vector3& rTorque) noexcept
         {
-            PhysicsSystem *pJoltWorld = rJolt.m_world.get();
+            PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
 
             float inv_mass = SysJolt::get_inverse_mass_no_lock(*pJoltWorld, joltBodyId);
 
@@ -231,7 +231,7 @@ Session setup_phys_shapes_jolt(
                 bodyCreation.mMotionType = EMotionType::Static;
                 bodyCreation.mObjectLayer = Layers::MOVING;
             }
-            PhysicsSystem *pJoltWorld = rJolt.m_world.get();
+            PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
             BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
             JoltBodyId joltBodyId = bodyInterface.CreateAndAddBody(bodyCreation, EActivation::Activate);
 
@@ -486,7 +486,7 @@ Session setup_vehicle_spawn_jolt(
     
                 bodyCreation.mRotation = joltRotation;
 
-                PhysicsSystem *pJoltWorld = rJolt.m_world.get();
+                PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
                 BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
                 JoltBodyId joltBody = bodyInterface.CreateAndAddBody(bodyCreation, EActivation::Activate);
@@ -629,7 +629,7 @@ static void rocket_thrust_force(JoltBodyId const joltBody, OspBodyId const ospBo
 
     auto &rBodyRockets = rRocketsJolt.m_bodyRockets[ospBody];
 
-    PhysicsSystem *pJoltWorld = rJolt.m_world.get();
+    PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
     //no lock as all bodies are locked in callbacks
     BodyInterface &bodyInterface = pJoltWorld->GetBodyInterfaceNoLock();
 
