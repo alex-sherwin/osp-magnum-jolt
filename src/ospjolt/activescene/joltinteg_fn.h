@@ -97,17 +97,8 @@ public:
             osp::Matrix3 const&     rotation,
             osp::Vector3 const&     scale);
 
-    static OspBodyId get_userdata_bodyid(BodyInterface& bodyInterface, JoltBodyId const body)
-    {
-        return static_cast<OspBodyId>(bodyInterface.GetUserData(body));
-    }
-
-    static void set_userdata_bodyid(BodyInterface& bodyInterface, JoltBodyId const joltBody, OspBodyId const ospBody)
-    {
-        return bodyInterface.SetUserData(joltBody, static_cast<uint64_t>(ospBody));
-    }
     //Get the inverse mass of a jolt body
-    static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, JoltBodyId joltBodyId);
+    static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, BodyID bodyId);
     
 private:
 

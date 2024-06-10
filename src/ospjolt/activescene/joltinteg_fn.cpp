@@ -50,7 +50,6 @@ using osp::Vector3;
 void SysJolt::resize_body_data(ACtxJoltWorld& rCtxWorld)
 {
     std::size_t const capacity = rCtxWorld.m_bodyIds.capacity();
-    rCtxWorld.m_ospToJoltBodyId.resize(capacity);
     rCtxWorld.m_bodyToEnt      .resize(capacity);
     rCtxWorld.m_bodyFactors    .resize(capacity);
 }
@@ -70,7 +69,7 @@ void SysJolt::update_translate(ACtxPhysics& rCtxPhys, ACtxJoltWorld& rCtxWorld) 
         BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
 
         // Translate every jolt body
-        for (JoltBodyId bodyId : allBodiesIds)
+        for (BodyID bodyId : allBodiesIds)
         {
             RVec3 position = bodyInterface.GetPosition(bodyId);
             Matrix4 matrix;
@@ -95,8 +94,7 @@ void SysJolt::update_world(
     // Apply changed velocities
     for (auto const& [ent, vel] : std::exchange(rCtxPhys.m_setVelocity, {}))
     {
-        OspBodyId const ospBodyId     = rCtxWorld.m_entToBody.at(ent);
-        JoltBodyId const bodyId     = rCtxWorld.m_ospToJoltBodyId[ospBodyId];
+        BodyID const bodyId     = rCtxWorld.m_entToBody.at(ent);
 
         bodyInterface.SetLinearVelocity(bodyId, Vec3(vel.x(), vel.y(), vel.z()));
     }
@@ -113,7 +111,7 @@ void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcep
 
     if (itBodyId != rCtxWorld.m_entToBody.end())
     {
-        OspBodyId const bodyId = itBodyId->second;
+        BodyID const bodyId = itBodyId->second;
         rCtxWorld.m_bodyIds.remove(bodyId);
         rCtxWorld.m_bodyToEnt[bodyId] = lgrn::id_null<ActiveEnt>();
         rCtxWorld.m_entToBody.erase(itBodyId);
@@ -157,11 +155,11 @@ void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospSha
     
 }
 
-float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem, JoltBodyId joltBodyId)
+float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem, BodyID bodyId)
 {
     const BodyLockInterfaceNoLock& lockInterface = physicsSystem.GetBodyLockInterfaceNoLock(); 
     {
-        JPH::BodyLockRead lock(lockInterface, joltBodyId);
+        JPH::BodyLockRead lock(lockInterface, bodyId);
         if (lock.Succeeded()) // body_id may no longer be valid
         {
             const JPH::Body &body = lock.GetBody();
@@ -222,18 +220,17 @@ void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorl
 {
     //no lock as all bodies are already locked
     BodyInterface &bodyInterface = rJoltWorld.GetBodyInterfaceNoLock();
-    for (OspBodyId ospBody : m_context->m_bodyIds)
+    for (BodyID bodyId : m_context->m_bodyIds)
     {
-        JoltBodyId joltBody = m_context->m_ospToJoltBodyId[ospBody];
-        if (bodyInterface.GetMotionType(joltBody) != EMotionType::Dynamic) 
+        if (bodyInterface.GetMotionType(bodyId) != EMotionType::Dynamic) 
         {
             continue;
         }
 
         //Transform jolt -> osp
 
-        ActiveEnt const ent = m_context->m_bodyToEnt[ospBody];
-        Mat44 worldTranform = bodyInterface.GetWorldTransform(joltBody);
+        ActiveEnt const ent = m_context->m_bodyToEnt[bodyId];
+        Mat44 worldTranform = bodyInterface.GetWorldTransform(bodyId);
 
         worldTranform.StoreFloat4x4((Float4*)m_context->m_pTransform->get(ent).m_transform.data());
 
@@ -241,14 +238,14 @@ void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorl
         Vector3 force{0.0f};
         Vector3 torque{0.0f};
 
-        auto factorBits = lgrn::bit_view(m_context->m_bodyFactors[ospBody]);
+        auto factorBits = lgrn::bit_view(m_context->m_bodyFactors[bodyId]);
         for (std::size_t const factorIdx : factorBits.ones())
         {   
             ACtxJoltWorld::ForceFactorFunc const& factor = m_context->m_factors[factorIdx];
-            factor.m_func(joltBody, ospBody, *m_context, factor.m_userData, force, torque);
+            factor.m_func(bodyId, *m_context, factor.m_userData, force, torque);
         }
-        Vec3 vel = bodyInterface.GetLinearVelocity(joltBody);
+        Vec3 vel = bodyInterface.GetLinearVelocity(bodyId);
 
-        bodyInterface.AddForceAndTorque(joltBody, Vec3Arg (force.x(), force.y(), force.z()), Vec3Arg(torque.x(), torque.y(), torque.z()));
+        bodyInterface.AddForceAndTorque(bodyId, Vec3Arg (force.x(), force.y(), force.z()), Vec3Arg(torque.x(), torque.y(), torque.z()));
     }
 }

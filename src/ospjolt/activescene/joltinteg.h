@@ -72,9 +72,6 @@ using namespace JPH;
 
 using JoltBodyPtr_t = std::unique_ptr< Body >;
 
-using OspBodyId = uint32_t;
-using JoltBodyId = BodyID;
-
 #ifdef JPH_ENABLE_ASSERTS
 
 // Callback for asserts, connect this to your own assert handler if you have one
@@ -88,6 +85,20 @@ static bool AssertFailedImpl(const char *inExpression, const char *inMessage, co
 };
 
 #endif // JPH_ENABLE_ASSERTS
+
+static void TraceImpl(const char *inFMT, ...)
+{
+     // Format the message
+    va_list list;
+    va_start(list, inFMT);
+    char buffer[1024];
+    vsnprintf(buffer, sizeof(buffer), inFMT, list);
+    va_end(list);
+
+    // Print to the TTY
+    OSP_LOG_TRACE(buffer);
+}
+
 
 /**
  * @brief The different physics layers for the simulation
@@ -214,7 +225,7 @@ public:
     struct ForceFactorFunc
     {
         using UserData_t = std::array<void*, 6u>;
-        using Func_t = void (*)(JoltBodyId joltBodyId, OspBodyId ospBodyId, ACtxJoltWorld const&, UserData_t, osp::Vector3&, osp::Vector3&) noexcept;
+        using Func_t = void (*)(BodyID bodyId, ACtxJoltWorld const&, UserData_t, osp::Vector3&, osp::Vector3&) noexcept;
 
         Func_t      m_func{nullptr};
         UserData_t  m_userData{nullptr};
@@ -260,13 +271,12 @@ public:
 
     std::unique_ptr<PhysicsStepListenerImpl>		    m_listener;
 
-    lgrn::IdRegistryStl<OspBodyId>                      m_bodyIds;
-    osp::KeyedVec<OspBodyId, ForceFactors_t>            m_bodyFactors;
-    lgrn::IdSetStl<OspBodyId>                           m_bodyDirty;
+    lgrn::IdRegistryStl<BodyID>                         m_bodyIds;
+    osp::KeyedVec<BodyID, ForceFactors_t>               m_bodyFactors;
+    lgrn::IdSetStl<BodyID>                              m_bodyDirty;
 
-    osp::KeyedVec<OspBodyId, JoltBodyId>                m_ospToJoltBodyId;
-    osp::KeyedVec<OspBodyId, osp::active::ActiveEnt>    m_bodyToEnt;
-    osp::IdMap_t<osp::active::ActiveEnt, OspBodyId>     m_entToBody;
+    osp::KeyedVec<BodyID, osp::active::ActiveEnt>       m_bodyToEnt;
+    osp::IdMap_t<osp::active::ActiveEnt, BodyID>        m_entToBody;
 
     std::vector<ForceFactorFunc>                        m_factors;
     ShapeStorage_t                                      m_shapes;
@@ -281,11 +291,8 @@ private:
         RegisterDefaultAllocator();
 
         // Install trace and assert callbacks
-        JPH::Trace = [](const char* fmt...) 
-        {
-            SPDLOG_TRACE(fmt); 
-        };
-        JPH_IF_ENABLE_ASSERTS(AssertFailed = AssertFailedImpl;)
+        JPH::Trace = &TraceImpl;
+        JPH_IF_ENABLE_ASSERTS(AssertFailed = &AssertFailedImpl;)
 
         // Create a factory, this class is responsible for creating instances of classes based on their name or hash and is mainly used for deserialization of saved data.
         // It is not directly used in this example but still required.
