@@ -73,7 +73,7 @@ void SysJolt::update_translate(ACtxPhysics& rCtxPhys, ACtxJoltWorld& rCtxWorld) 
         {
             RVec3 position = bodyInterface.GetPosition(bodyId);
             Matrix4 matrix;
-            position += RVec3(translate.x(), translate.y(), translate.z());
+            position += Vec3MagnumToJolt(translate);
             //As we are translating the whole world, we don't need to wake up asleep bodies. 
             bodyInterface.SetPosition(bodyId, position, EActivation::DontActivate);
         }
@@ -96,7 +96,7 @@ void SysJolt::update_world(
     {
         BodyID const bodyId     = rCtxWorld.m_entToBody.at(ent);
 
-        bodyInterface.SetLinearVelocity(bodyId, Vec3(vel.x(), vel.y(), vel.z()));
+        bodyInterface.SetLinearVelocity(bodyId, Vec3MagnumToJolt(vel));
     }
 
     rCtxWorld.m_pTransform = std::addressof(rTf);
@@ -119,55 +119,58 @@ void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcep
 
 }
 
-TransformedShapePtr_t SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape)
+Ref<Shape> SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape, Vec3Arg scale)
 {
-    Shape* joltShape;
     switch (shape)
     {
     case EShape::Sphere:
-        joltShape = (Shape *) new SphereShape(1.0f);
-        break;
+    //Sphere only support uniform shape
+        return SphereShapeSettings(1.0f * scale.GetX()).Create().Get();
     case EShape::Box:
-        joltShape = (Shape *) new BoxShape(Vec3Arg(1.0f, 1.0f, 1.0f));
-        break;
+        return BoxShapeSettings(scale).Create().Get();
     case EShape::Cylinder:
         //cylinder needs to be internally rotated 90° to match with graphics
-        joltShape = (Shape *) new CylinderShape(1.0f, 2.0f);
-        joltShape = (Shape *) new RotatedTranslatedShape(Vec3Arg::sZero(), Quat::sRotation(Vec3::sAxisX(), JPH_PI/2), joltShape);
-        break;
-    default:
-        // TODO: support other shapes, sphere is used for now
-        joltShape = (Shape *) new SphereShape(1.0f);
-        break;
-    }
-    return std::make_unique<TransformedShape>(RVec3::sZero(), Quat::sZero(), joltShape, BodyID(), SubShapeIDCreator());
-}
-
-void SysJolt::orient_shape(TransformedShapePtr_t& pJoltShape, osp::EShape ospShape, osp::Vector3 const &translation, osp::Matrix3 const &rotation, osp::Vector3 const &scale)
-{
-    auto rawQuat = Magnum::Quaternion::fromMatrix(rotation).data();
-    Quat joltRotation(rawQuat[0], rawQuat[1], rawQuat[2], rawQuat[3]);
-
-    //scale the shape directly
-    pJoltShape->mShape = pJoltShape->mShape->ScaleShape(Vec3Arg(scale.x(), scale.y(), scale.z())).Get();
-    
-    pJoltShape->SetWorldTransform(RVec3Arg(translation.x(), translation.y(), translation.z()), joltRotation, Vec3Arg(1.0f, 1.0f, 1.0f));
-    
-}
-
-float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem, BodyID bodyId)
-{
-    const BodyLockInterfaceNoLock& lockInterface = physicsSystem.GetBodyLockInterfaceNoLock(); 
-    {
-        JPH::BodyLockRead lock(lockInterface, bodyId);
-        if (lock.Succeeded()) // body_id may no longer be valid
         {
-            const JPH::Body &body = lock.GetBody();
+            CylinderShapeSettings cylinderSettings(scale.GetY(), 2.0f * scale.GetX());
+            return  RotatedTranslatedShapeSettings(
+                        Vec3Arg::sZero(), 
+                        Quat::sRotation(Vec3::sAxisX(), JPH_PI/2), 
+                        &cylinderSettings
+                    ).Create().Get();
+        }
+    default:
+        return SphereShapeSettings(1.0f * scale.GetX()).Create().Get();
+    }
+}
 
-            return body.GetMotionProperties()->GetInverseMass();
+void SysJolt::scale_shape(Ref<Shape> rShape, Vec3Arg scale) {
+    if (rShape->GetSubType() == EShapeSubType::Scaled) {
+        ScaledShape* rScaledShape = dynamic_cast<ScaledShape*>(rShape.GetPtr());
+        if (rScaledShape) 
+        {
+            rShape = new ScaledShape(rScaledShape->GetInnerShape(), scale * rScaledShape->GetScale());
         }
     }
-    return 0.0f;
+    else 
+    {
+        rShape = new ScaledShape(rShape, scale);
+    }
+}
+
+float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem,
+                                        BodyID bodyId) {
+  const BodyLockInterfaceNoLock &lockInterface =
+      physicsSystem.GetBodyLockInterfaceNoLock();
+  {
+    JPH::BodyLockRead lock(lockInterface, bodyId);
+    if (lock.Succeeded()) // body_id may no longer be valid
+    {
+      const JPH::Body &body = lock.GetBody();
+
+      return body.GetMotionProperties()->GetInverseMass();
+    }
+  }
+  return 0.0f;
 }
 
 void SysJolt::find_shapes_recurse(
@@ -182,13 +185,14 @@ void SysJolt::find_shapes_recurse(
     // Add jolt shape if exists
     if (rCtxWorld.m_shapes.contains(ent))
     {
-        TransformedShapePtr_t& pShape = rCtxWorld.m_shapes.get(ent);
+        Ref<Shape> rShape = rCtxWorld.m_shapes.get(ent);
 
         // Set transform relative to root body
-
-        SysJolt::orient_shape(pShape, rCtxPhys.m_shape[ent], transform.translation(), transform.rotation(), transform.scaling());
-        Ref<Shape> rScaledShape = pShape->mShape->ScaleShape(Vec3(pShape->mShapeScale)).Get();
-        pCompound.AddShape(pShape->mShapePositionCOM, pShape->mShapeRotation, rScaledShape);
+        SysJolt::scale_shape(rShape, Vec3MagnumToJolt(transform.scaling()));
+        pCompound.AddShape(
+            Vec3MagnumToJolt(transform.translation()), 
+            QuatMagnumToJolt(osp::Quaternion::fromMatrix(transform.rotation())), 
+            rShape);
     }
 
     if ( ! rCtxPhys.m_hasColliders.contains(ent) )
@@ -246,6 +250,6 @@ void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorl
         }
         Vec3 vel = bodyInterface.GetLinearVelocity(bodyId);
 
-        bodyInterface.AddForceAndTorque(bodyId, Vec3Arg (force.x(), force.y(), force.z()), Vec3Arg(torque.x(), torque.y(), torque.z()));
+        bodyInterface.AddForceAndTorque(bodyId, Vec3MagnumToJolt(force), Vec3MagnumToJolt(torque));
     }
 }

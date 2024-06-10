@@ -209,20 +209,23 @@ Session setup_phys_shapes_jolt(
             ActiveEnt const root    = rPhysShapes.m_ents[i * 2];
             ActiveEnt const child   = rPhysShapes.m_ents[i * 2 + 1];
 
-            TransformedShapePtr_t pShape = SysJolt::create_primitive(rJolt, spawn.m_shape);
-            SysJolt::orient_shape(pShape, spawn.m_shape, spawn.m_position, Matrix3{}, spawn.m_size);
+            Ref<Shape> pShape = SysJolt::create_primitive(rJolt, spawn.m_shape, Vec3MagnumToJolt(spawn.m_size));
             
             BodyID const bodyId = rJolt.m_bodyIds.create();
             SysJolt::resize_body_data(rJolt);
 
-            BodyCreationSettings bodyCreation(pShape->mShape, pShape->mShapePositionCOM, pShape->mShapeRotation, EMotionType::Dynamic, Layers::MOVING);
+            BodyCreationSettings bodyCreation(pShape, 
+                                            Vec3MagnumToJolt(spawn.m_position), 
+                                            Quat::sIdentity(), 
+                                            EMotionType::Dynamic, 
+                                            Layers::MOVING);
             
             if (spawn.m_mass > 0.0f) 
             { 
                 MassProperties massProp;
                 Vector3 const inertia = collider_inertia_tensor(spawn.m_shape, spawn.m_size, spawn.m_mass);
                 massProp.mMass = spawn.m_mass; 
-                massProp.mInertia = Mat44::sScale(Vec3Arg(inertia.x(), inertia.y(), inertia.z()));
+                massProp.mInertia = Mat44::sScale(Vec3MagnumToJolt(inertia));
                 bodyCreation.mMassPropertiesOverride = massProp;
                 bodyCreation.mOverrideMassProperties = EOverrideMassProperties::MassAndInertiaProvided;
             }
@@ -260,21 +263,22 @@ void compound_collect_recurse(
     if (shape != EShape::None)
     {
         bool entExists = rCtxWorld.m_shapes.contains(ent);
-        TransformedShapePtr_t& pShape = entExists
+        Ref<Shape> rShape = entExists
                                ? rCtxWorld.m_shapes.get(ent)
                                : rCtxWorld.m_shapes.emplace(ent);
 
         if (!entExists)
         {
-            pShape = SysJolt::create_primitive(rCtxWorld, shape);
+            rShape = SysJolt::create_primitive(rCtxWorld, shape, Vec3MagnumToJolt(transform.scaling()));
+        }
+        else 
+        {
+            SysJolt::scale_shape(rShape, Vec3MagnumToJolt(transform.scaling()));
         }
 
-        SysJolt::orient_shape(pShape, shape, transform.translation(), transform.rotation(), transform.scaling());
-        //scale the shape itself
-        Ref<Shape> scaledShape = pShape->mShape->ScaleShape(pShape->GetShapeScale()).Get();
-
-        //and add it to the compound shape
-        rCompound.AddShape(pShape->mShapePositionCOM, pShape->mShapeRotation, scaledShape);
+        rCompound.AddShape( Vec3MagnumToJolt(transform.translation()), 
+                            QuatMagnumToJolt(osp::Quaternion::fromMatrix(transform.rotation())), 
+                            rShape);
     }
 
     if ( ! rCtxPhys.m_hasColliders.contains(ent) )
@@ -478,7 +482,7 @@ Session setup_vehicle_spawn_jolt(
                 bodyCreation.mLinearDamping = 0.0f;
                 bodyCreation.mAngularDamping = 0.0f;
 
-                bodyCreation.mPosition = Vec3(toInit.position.x(), toInit.position.y(), toInit.position.z());
+                bodyCreation.mPosition = Vec3MagnumToJolt(toInit.position);
 
                 auto rawQuat = toInit.rotation.data();
                 Quat joltRotation(rawQuat[0], rawQuat[1], rawQuat[2], rawQuat[3]);
@@ -635,11 +639,10 @@ static void rocket_thrust_force(BodyID const bodyId, ACtxJoltWorld const& rJolt,
         return;
     }
 
-    Quat joltQuat = bodyInterface.GetRotation(bodyId);
-    Quaternion const rot{{joltQuat.GetX(), joltQuat.GetY(), joltQuat.GetZ()}, joltQuat.GetW()};
+    Quaternion const rot = QuatJoltToMagnum(bodyInterface.GetRotation(bodyId));
 
-    RVec3 joltCom = bodyInterface.GetCenterOfMassPosition(bodyId) - bodyInterface.GetPosition(bodyId);
-    Vector3 com(joltCom.GetX(), joltCom.GetY(), joltCom.GetZ());
+    RVec3 joltCOM = bodyInterface.GetCenterOfMassPosition(bodyId) - bodyInterface.GetPosition(bodyId);
+    Vector3 com = Vec3JoltToMagnum(joltCOM);
 
     for (BodyRocket const& bodyRocket : rBodyRockets)
     {

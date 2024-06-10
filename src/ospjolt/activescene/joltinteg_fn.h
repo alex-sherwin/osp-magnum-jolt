@@ -77,7 +77,7 @@ public:
     static void remove_components(
             ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcept;
 
-    [[nodiscard]] static TransformedShapePtr_t create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape);
+    static Ref<Shape> create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape, Vec3Arg scale);
 
     template<typename IT_T>
     static void update_delete(
@@ -89,13 +89,8 @@ public:
             std::advance(first, 1);
         }
     }
-
-    static void orient_shape(
-            TransformedShapePtr_t&  rJoltShape,
-            osp::EShape             ospShape,
-            osp::Vector3 const&     translation,
-            osp::Matrix3 const&     rotation,
-            osp::Vector3 const&     scale);
+    //Apply a scale to a shape.
+    static void scale_shape(Ref<Shape> rJoltShap, Vec3Arg scale);
 
     //Get the inverse mass of a jolt body
     static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, BodyID bodyId);

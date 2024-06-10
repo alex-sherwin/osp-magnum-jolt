@@ -49,6 +49,7 @@ JPH_SUPPRESS_WARNINGS
 #include <Jolt/Physics/Body/BodyActivationListener.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/Collision/Shape/CompoundShape.h>
+#include <Jolt/Physics/Collision/Shape/ScaledShape.h>
 #include <Jolt/Physics/Collision/Shape/MutableCompoundShape.h>
 #include <Jolt/Physics/PhysicsStepListener.h>
 #include <Jolt/Core/JobSystemSingleThreaded.h>
@@ -65,12 +66,33 @@ JPH_SUPPRESS_WARNING_POP
 #include <iostream>
 #include <cstdarg>
 #include <thread>
+#include <logging.h>
 
 namespace ospjolt
 {
 using namespace JPH;
 
 using JoltBodyPtr_t = std::unique_ptr< Body >;
+
+static constexpr osp::Vector3 Vec3JoltToMagnum(Vec3 in)
+{
+    return Vector3(in.GetX(), in.GetY(), in.GetZ());
+}
+
+static constexpr Vec3 Vec3MagnumToJolt(osp::Vector3 in)
+{
+    return Vec3(in.x(), in.y(), in.z());
+}
+
+static constexpr Quat QuatMagnumToJolt(osp::Quaternion in)
+{
+    return Quat(in.vector().x(), in.vector().y(), in.vector().z(), in.scalar());
+}
+
+static constexpr osp::Quaternion QuatJoltToMagnum(Quat in)
+{
+    return osp::Quaternion(osp::Vector3(in.GetX(), in.GetY(), in.GetZ()), in.GetW());
+}
 
 #ifdef JPH_ENABLE_ASSERTS
 
@@ -213,8 +235,7 @@ private:
     ACtxJoltWorld* m_context;
 };
 
-using TransformedShapePtr_t = std::unique_ptr<TransformedShape>;
-using ShapeStorage_t = osp::Storage_t<osp::active::ActiveEnt, TransformedShapePtr_t>;
+using ShapeStorage_t = osp::Storage_t<osp::active::ActiveEnt, Ref<Shape>>;
 
 /**
  * @brief Represents an instance of a Jolt physics world in the scene
