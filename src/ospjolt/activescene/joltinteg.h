@@ -66,7 +66,11 @@ JPH_SUPPRESS_WARNING_POP
 #include <iostream>
 #include <cstdarg>
 #include <thread>
-#include <logging.h>
+#include <osp/util/logging.h>
+#include <concepts>
+#include <typeindex> 
+
+#include "osp/core/strong_id.h"
 
 namespace ospjolt
 {
@@ -74,22 +78,29 @@ using namespace JPH;
 
 using JoltBodyPtr_t = std::unique_ptr< Body >;
 
-static constexpr osp::Vector3 Vec3JoltToMagnum(Vec3 in)
+using BodyId = osp::StrongId<uint32, struct DummyForBodyId>;
+
+inline JPH::BodyID BToJolt(const BodyId& bodyId)
 {
-    return Vector3(in.GetX(), in.GetY(), in.GetZ());
+    return JPH::BodyID(bodyId.value, 0);
 }
 
-static constexpr Vec3 Vec3MagnumToJolt(osp::Vector3 in)
+inline osp::Vector3 Vec3JoltToMagnum(Vec3 in)
+{
+    return osp::Vector3(in.GetX(), in.GetY(), in.GetZ());
+}
+
+inline Vec3 Vec3MagnumToJolt(osp::Vector3 in)
 {
     return Vec3(in.x(), in.y(), in.z());
 }
 
-static constexpr Quat QuatMagnumToJolt(osp::Quaternion in)
+inline Quat QuatMagnumToJolt(osp::Quaternion in)
 {
     return Quat(in.vector().x(), in.vector().y(), in.vector().z(), in.scalar());
 }
 
-static constexpr osp::Quaternion QuatJoltToMagnum(Quat in)
+inline osp::Quaternion QuatJoltToMagnum(Quat in)
 {
     return osp::Quaternion(osp::Vector3(in.GetX(), in.GetY(), in.GetZ()), in.GetW());
 }
@@ -246,7 +257,7 @@ public:
     struct ForceFactorFunc
     {
         using UserData_t = std::array<void*, 6u>;
-        using Func_t = void (*)(BodyID bodyId, ACtxJoltWorld const&, UserData_t, osp::Vector3&, osp::Vector3&) noexcept;
+        using Func_t = void (*)(BodyId bodyId, ACtxJoltWorld const&, UserData_t, osp::Vector3&, osp::Vector3&) noexcept;
 
         Func_t      m_func{nullptr};
         UserData_t  m_userData{nullptr};
@@ -282,6 +293,8 @@ public:
         std::call_once(ACtxJoltWorld::initFlag, ACtxJoltWorld::initJoltGlobalInternal);
     }
 
+    
+
     TempAllocatorImpl                                   m_temp_allocator;
     ObjectLayerPairFilterImpl                           m_objectLayerFilter;
     BPLayerInterfaceImpl                                m_bPLInterface;
@@ -292,12 +305,12 @@ public:
 
     std::unique_ptr<PhysicsStepListenerImpl>		    m_listener;
 
-    lgrn::IdRegistryStl<BodyID>                         m_bodyIds;
-    osp::KeyedVec<BodyID, ForceFactors_t>               m_bodyFactors;
-    lgrn::IdSetStl<BodyID>                              m_bodyDirty;
+    lgrn::IdRegistryStl<BodyId>                         m_bodyIds;
+    osp::IdMap_t<BodyId, ForceFactors_t>                m_bodyFactors;
+    lgrn::IdSetStl<BodyId>                              m_bodyDirty;
 
-    osp::KeyedVec<BodyID, osp::active::ActiveEnt>       m_bodyToEnt;
-    osp::IdMap_t<osp::active::ActiveEnt, BodyID>        m_entToBody;
+    osp::IdMap_t<BodyId, osp::active::ActiveEnt>        m_bodyToEnt;
+    osp::IdMap_t<osp::active::ActiveEnt, BodyId>        m_entToBody;
 
     std::vector<ForceFactorFunc>                        m_factors;
     ShapeStorage_t                                      m_shapes;
@@ -327,10 +340,10 @@ private:
     }
 
 
-    static std::once_flag                           initFlag;
+    inline static std::once_flag initFlag;
     
 };
 
 
+} //namespace ospjolt
 
-}

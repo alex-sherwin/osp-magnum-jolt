@@ -93,7 +93,7 @@ public:
     static void scale_shape(Ref<Shape> rJoltShap, Vec3Arg scale);
 
     //Get the inverse mass of a jolt body
-    static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, BodyID bodyId);
+    static float get_inverse_mass_no_lock(PhysicsSystem& physicsSystem, BodyId bodyId);
     
 private:
 

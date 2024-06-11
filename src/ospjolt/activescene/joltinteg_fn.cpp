@@ -50,8 +50,6 @@ using osp::Vector3;
 void SysJolt::resize_body_data(ACtxJoltWorld& rCtxWorld)
 {
     std::size_t const capacity = rCtxWorld.m_bodyIds.capacity();
-    rCtxWorld.m_bodyToEnt      .resize(capacity);
-    rCtxWorld.m_bodyFactors    .resize(capacity);
 }
 
 
@@ -94,7 +92,7 @@ void SysJolt::update_world(
     // Apply changed velocities
     for (auto const& [ent, vel] : std::exchange(rCtxPhys.m_setVelocity, {}))
     {
-        BodyID const bodyId     = rCtxWorld.m_entToBody.at(ent);
+        JPH::BodyID const bodyId     = BToJolt(rCtxWorld.m_entToBody.at(ent));
 
         bodyInterface.SetLinearVelocity(bodyId, Vec3MagnumToJolt(vel));
     }
@@ -108,10 +106,14 @@ void SysJolt::update_world(
 void SysJolt::remove_components(ACtxJoltWorld& rCtxWorld, ActiveEnt ent) noexcept
 {
     auto itBodyId = rCtxWorld.m_entToBody.find(ent);
+    BodyInterface &bodyInterface = rCtxWorld.m_pPhysicsSystem->GetBodyInterface();
 
     if (itBodyId != rCtxWorld.m_entToBody.end())
     {
-        BodyID const bodyId = itBodyId->second;
+        BodyId const bodyId = itBodyId->second;
+        JPH::BodyID joltBodyId = BToJolt(bodyId);
+        bodyInterface.RemoveBody(joltBodyId);
+        bodyInterface.DestroyBody(joltBodyId);
         rCtxWorld.m_bodyIds.remove(bodyId);
         rCtxWorld.m_bodyToEnt[bodyId] = lgrn::id_null<ActiveEnt>();
         rCtxWorld.m_entToBody.erase(itBodyId);
@@ -130,14 +132,12 @@ Ref<Shape> SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape
         return BoxShapeSettings(scale).Create().Get();
     case EShape::Cylinder:
         //cylinder needs to be internally rotated 90° to match with graphics
-        {
-            CylinderShapeSettings cylinderSettings(scale.GetY(), 2.0f * scale.GetX());
-            return  RotatedTranslatedShapeSettings(
-                        Vec3Arg::sZero(), 
-                        Quat::sRotation(Vec3::sAxisX(), JPH_PI/2), 
-                        &cylinderSettings
-                    ).Create().Get();
-        }
+        return  RotatedTranslatedShapeSettings(
+                    Vec3Arg::sZero(), 
+                    Quat::sRotation(Vec3::sAxisX(), JPH_PI/2), 
+                    new CylinderShapeSettings(scale.GetY(), 2.0f * scale.GetX())
+                ).Create().Get();
+        
     default:
         return SphereShapeSettings(1.0f * scale.GetX()).Create().Get();
     }
@@ -158,11 +158,11 @@ void SysJolt::scale_shape(Ref<Shape> rShape, Vec3Arg scale) {
 }
 
 float SysJolt::get_inverse_mass_no_lock(PhysicsSystem &physicsSystem,
-                                        BodyID bodyId) {
+                                        BodyId bodyId) {
   const BodyLockInterfaceNoLock &lockInterface =
       physicsSystem.GetBodyLockInterfaceNoLock();
   {
-    JPH::BodyLockRead lock(lockInterface, bodyId);
+    JPH::BodyLockRead lock(lockInterface, BToJolt(bodyId));
     if (lock.Succeeded()) // body_id may no longer be valid
     {
       const JPH::Body &body = lock.GetBody();
@@ -224,17 +224,19 @@ void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorl
 {
     //no lock as all bodies are already locked
     BodyInterface &bodyInterface = rJoltWorld.GetBodyInterfaceNoLock();
-    for (BodyID bodyId : m_context->m_bodyIds)
+    for (BodyId bodyId : m_context->m_bodyIds)
     {
-        if (bodyInterface.GetMotionType(bodyId) != EMotionType::Dynamic) 
+        JPH::BodyID joltBodyId = BToJolt(bodyId);
+        if (bodyInterface.GetMotionType(joltBodyId) != EMotionType::Dynamic) 
         {
             continue;
         }
 
         //Transform jolt -> osp
 
+
         ActiveEnt const ent = m_context->m_bodyToEnt[bodyId];
-        Mat44 worldTranform = bodyInterface.GetWorldTransform(bodyId);
+        Mat44 worldTranform = bodyInterface.GetWorldTransform(joltBodyId);
 
         worldTranform.StoreFloat4x4((Float4*)m_context->m_pTransform->get(ent).m_transform.data());
 
@@ -248,8 +250,8 @@ void PhysicsStepListenerImpl::OnStep(float inDeltaTime, PhysicsSystem &rJoltWorl
             ACtxJoltWorld::ForceFactorFunc const& factor = m_context->m_factors[factorIdx];
             factor.m_func(bodyId, *m_context, factor.m_userData, force, torque);
         }
-        Vec3 vel = bodyInterface.GetLinearVelocity(bodyId);
+        Vec3 vel = bodyInterface.GetLinearVelocity(joltBodyId);
 
-        bodyInterface.AddForceAndTorque(bodyId, Vec3MagnumToJolt(force), Vec3MagnumToJolt(torque));
+        bodyInterface.AddForceAndTorque(joltBodyId, Vec3MagnumToJolt(force), Vec3MagnumToJolt(torque));
     }
 }

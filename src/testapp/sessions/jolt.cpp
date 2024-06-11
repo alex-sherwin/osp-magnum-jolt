@@ -147,7 +147,7 @@ osp::Session setup_jolt_force_accel(
 
     ACtxJoltWorld::ForceFactorFunc const factor
     {
-        .m_func = [] (BodyID const bodyId, ACtxJoltWorld const& rJolt, UserData_t data, Vector3& rForce, Vector3& rTorque) noexcept
+        .m_func = [] (BodyId const bodyId, ACtxJoltWorld const& rJolt, UserData_t data, Vector3& rForce, Vector3& rTorque) noexcept
         {
             PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
 
@@ -211,7 +211,7 @@ Session setup_phys_shapes_jolt(
 
             Ref<Shape> pShape = SysJolt::create_primitive(rJolt, spawn.m_shape, Vec3MagnumToJolt(spawn.m_size));
             
-            BodyID const bodyId = rJolt.m_bodyIds.create();
+            BodyId const bodyId = rJolt.m_bodyIds.create();
             SysJolt::resize_body_data(rJolt);
 
             BodyCreationSettings bodyCreation(pShape, 
@@ -234,10 +234,12 @@ Session setup_phys_shapes_jolt(
                 bodyCreation.mMotionType = EMotionType::Static;
                 bodyCreation.mObjectLayer = Layers::MOVING;
             }
+            //TODO helper function ? 
             PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
             BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
-            bodyInterface.CreateBodyWithID(bodyId, bodyCreation);
-            bodyInterface.AddBody(bodyId, EActivation::Activate);
+            JPH::BodyID joltBodyId = BToJolt(bodyId);
+            bodyInterface.CreateBodyWithID(joltBodyId, bodyCreation);
+            bodyInterface.AddBody(joltBodyId, EActivation::Activate);
 
             rJolt.m_bodyToEnt[bodyId]    = root;
             rJolt.m_bodyFactors[bodyId]  = joltFactors;
@@ -452,9 +454,8 @@ Session setup_vehicle_spawn_jolt(
                 Ref<Shape> compoundShape = compound.Create().Get();
                 BodyCreationSettings bodyCreation(compoundShape, Vec3Arg::sZero(), Quat::sZero(), EMotionType::Dynamic, Layers::MOVING);
 
-                BodyID const bodyId = rJolt.m_bodyIds.create();
+                BodyId const bodyId = rJolt.m_bodyIds.create();
                 SysJolt::resize_body_data(rJolt);
-
 
                 rJolt.m_bodyToEnt[bodyId] = weldEnt;
                 rJolt.m_bodyFactors[bodyId] = {1}; // TODO: temporary
@@ -491,9 +492,9 @@ Session setup_vehicle_spawn_jolt(
 
                 PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
                 BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
-
-                bodyInterface.CreateBodyWithID(bodyId, bodyCreation);
-                bodyInterface.AddBody(bodyId, EActivation::Activate);
+                JPH::BodyID joltBodyId = BToJolt(bodyId);
+                bodyInterface.CreateBodyWithID(joltBodyId, bodyCreation);
+                bodyInterface.AddBody(joltBodyId, EActivation::Activate);
 
                 rPhys.m_setVelocity.emplace_back(weldEnt, toInit.velocity);
             });
@@ -519,7 +520,8 @@ struct BodyRocket
 struct ACtxRocketsJolt
 {
     // map each bodyId to a {machine, offset}
-    lgrn::IntArrayMultiMap<BodyID, BodyRocket> m_bodyRockets;
+    //TODO: make an IdMultiMap or something.
+    lgrn::IntArrayMultiMap<BodyId::entity_type, BodyRocket> m_bodyRockets;
 
 };
 
@@ -539,11 +541,11 @@ static void assign_rockets(
     using adera::ports_magicrocket::gc_multiplierIn;
 
     ActiveEnt const weldEnt = rScnParts.weldToActive[weld];
-    BodyID const body    = rJolt.m_entToBody.at(weldEnt);
+    BodyId const body    = rJolt.m_entToBody.at(weldEnt);
 
-    if (rRocketsJolt.m_bodyRockets.contains(body))
+    if (rRocketsJolt.m_bodyRockets.contains(body.value))
     {
-        rRocketsJolt.m_bodyRockets.erase(body);
+        rRocketsJolt.m_bodyRockets.erase(body.value);
     }
 
     for (PartId const part : rScnParts.weldToParts[weld])
@@ -617,18 +619,18 @@ static void assign_rockets(
 
     rBodyFactors[0] |= rJoltFactors[0];
 
-    rRocketsJolt.m_bodyRockets.emplace(body, rTemp.begin(), rTemp.end());
+    rRocketsJolt.m_bodyRockets.emplace(body.value, rTemp.begin(), rTemp.end());
     rTemp.clear();
 }
 
 // ACtxjoltWorld::ForceFactorFunc::Func_t
-static void rocket_thrust_force(BodyID const bodyId, ACtxJoltWorld const& rJolt, ACtxJoltWorld::ForceFactorFunc::UserData_t data, Vector3& rForce, Vector3& rTorque) noexcept
+static void rocket_thrust_force(BodyId const bodyId, ACtxJoltWorld const& rJolt, ACtxJoltWorld::ForceFactorFunc::UserData_t data, Vector3& rForce, Vector3& rTorque) noexcept
 {
     auto const& rRocketsJolt     = *reinterpret_cast<ACtxRocketsJolt const*>          (data[0]);
     auto const& rMachines       = *reinterpret_cast<Machines const*>                (data[1]);
     auto const& rSigValFloat    = *reinterpret_cast<SignalValues_t<float> const*>   (data[2]);
 
-    auto &rBodyRockets = rRocketsJolt.m_bodyRockets[bodyId];
+    auto &rBodyRockets = rRocketsJolt.m_bodyRockets[bodyId.value];
 
     PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
     //no lock as all bodies are locked in callbacks
@@ -639,9 +641,9 @@ static void rocket_thrust_force(BodyID const bodyId, ACtxJoltWorld const& rJolt,
         return;
     }
 
-    Quaternion const rot = QuatJoltToMagnum(bodyInterface.GetRotation(bodyId));
-
-    RVec3 joltCOM = bodyInterface.GetCenterOfMassPosition(bodyId) - bodyInterface.GetPosition(bodyId);
+    JPH::BodyID joltBodyId = BToJolt(bodyId);
+    Quaternion const rot = QuatJoltToMagnum(bodyInterface.GetRotation(joltBodyId));
+    RVec3 joltCOM = bodyInterface.GetCenterOfMassPosition(joltBodyId) - bodyInterface.GetPosition(joltBodyId);
     Vector3 com = Vec3JoltToMagnum(joltCOM);
 
     for (BodyRocket const& bodyRocket : rBodyRockets)
