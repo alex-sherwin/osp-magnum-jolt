@@ -203,7 +203,15 @@ Session setup_phys_shapes_jolt(
         .args({                   idBasic,                idPhysShapes,             idPhys,              idJolt,              idJoltFactors })
         .func([] (ACtxBasic const &rBasic, ACtxPhysShapes& rPhysShapes, ACtxPhysics& rPhys, ACtxJoltWorld& rJolt, ForceFactors_t joltFactors) noexcept
     {
-        for (std::size_t i = 0; i < rPhysShapes.m_spawnRequest.size(); ++i)
+
+        PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
+        BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
+
+        std::size_t numBodies = rPhysShapes.m_spawnRequest.size();
+
+        JPH::BodyID addedBodies[numBodies];
+        
+        for (std::size_t i = 0; i < numBodies; ++i)
         {
             SpawnShape const &spawn = rPhysShapes.m_spawnRequest[i];
             ActiveEnt const root    = rPhysShapes.m_ents[i * 2];
@@ -235,17 +243,19 @@ Session setup_phys_shapes_jolt(
                 bodyCreation.mObjectLayer = Layers::MOVING;
             }
             //TODO helper function ? 
-            PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
-            BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
+            
             JPH::BodyID joltBodyId = BToJolt(bodyId);
             bodyInterface.CreateBodyWithID(joltBodyId, bodyCreation);
-            bodyInterface.AddBody(joltBodyId, EActivation::Activate);
+            addedBodies[i] = joltBodyId;
 
             rJolt.m_bodyToEnt[bodyId]    = root;
             rJolt.m_bodyFactors[bodyId]  = joltFactors;
             rJolt.m_entToBody.emplace(root, bodyId);
 
         }
+        //Bodies are added all at once for performance reasons.
+        BodyInterface::AddState addState = bodyInterface.AddBodiesPrepare(addedBodies, numBodies);
+        bodyInterface.AddBodiesFinalize(addedBodies, numBodies, addState, EActivation::Activate);
     });
 
     return out;
@@ -431,6 +441,11 @@ Session setup_vehicle_spawn_jolt(
         auto const& itWeldOffsetsLast   = std::end(rVehicleSpawn.spawnedWeldOffsets);
         auto itWeldOffsets              = std::begin(rVehicleSpawn.spawnedWeldOffsets);
 
+        PhysicsSystem *pJoltWorld = rJolt.m_pPhysicsSystem.get();
+        BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
+
+        std::vector<JPH::BodyID> addedBodies;
+
         for (ACtxVehicleSpawn::TmpToInit const& toInit : rVehicleSpawn.spawnRequest)
         {
             auto const itWeldOffsetsNext = std::next(itWeldOffsets);
@@ -440,7 +455,7 @@ Session setup_vehicle_spawn_jolt(
 
             std::for_each(itWeldsFirst + std::ptrdiff_t{*itWeldOffsets},
                           itWeldsFirst + std::ptrdiff_t{weldOffsetNext},
-                          [&rBasic, &rScnParts, &rVehicleSpawn, &toInit, &rPhys, &rJolt] (WeldId const weld)
+                          [&rBasic, &rScnParts, &rVehicleSpawn, &toInit, &rPhys, &rJolt, &addedBodies] (WeldId const weld)
             {
                 ActiveEnt const weldEnt = rScnParts.weldToActive[weld];
 
@@ -494,13 +509,15 @@ Session setup_vehicle_spawn_jolt(
                 BodyInterface &bodyInterface = pJoltWorld->GetBodyInterface();
                 JPH::BodyID joltBodyId = BToJolt(bodyId);
                 bodyInterface.CreateBodyWithID(joltBodyId, bodyCreation);
-                bodyInterface.AddBody(joltBodyId, EActivation::Activate);
-
+                addedBodies.push_back(joltBodyId);
                 rPhys.m_setVelocity.emplace_back(weldEnt, toInit.velocity);
             });
 
             itWeldOffsets = itWeldOffsetsNext;
         }
+        //Bodies are added all at once for performance reasons.
+        BodyInterface::AddState addState = bodyInterface.AddBodiesPrepare(addedBodies.data(), addedBodies.size());
+        bodyInterface.AddBodiesFinalize(addedBodies.data(), addedBodies.size(), addState, EActivation::Activate);
     });
 
     return out;
