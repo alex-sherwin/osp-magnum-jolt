@@ -209,7 +209,8 @@ Session setup_phys_shapes_jolt(
 
         std::size_t numBodies = rPhysShapes.m_spawnRequest.size();
 
-        JPH::BodyID addedBodies[numBodies];
+        std::vector<JPH::BodyID> addedBodies;
+        addedBodies.reserve(numBodies);
         
         for (std::size_t i = 0; i < numBodies; ++i)
         {
@@ -246,7 +247,7 @@ Session setup_phys_shapes_jolt(
             
             JPH::BodyID joltBodyId = BToJolt(bodyId);
             bodyInterface.CreateBodyWithID(joltBodyId, bodyCreation);
-            addedBodies[i] = joltBodyId;
+            addedBodies.push_back(joltBodyId);
 
             rJolt.m_bodyToEnt[bodyId]    = root;
             rJolt.m_bodyFactors[bodyId]  = joltFactors;
@@ -254,8 +255,8 @@ Session setup_phys_shapes_jolt(
 
         }
         //Bodies are added all at once for performance reasons.
-        BodyInterface::AddState addState = bodyInterface.AddBodiesPrepare(addedBodies, numBodies);
-        bodyInterface.AddBodiesFinalize(addedBodies, numBodies, addState, EActivation::Activate);
+        BodyInterface::AddState addState = bodyInterface.AddBodiesPrepare(addedBodies.data(), numBodies);
+        bodyInterface.AddBodiesFinalize(addedBodies.data(), numBodies, addState, EActivation::Activate);
     });
 
     return out;

@@ -135,7 +135,7 @@ Ref<Shape> SysJolt::create_primitive(ACtxJoltWorld &rCtxWorld, osp::EShape shape
         return  RotatedTranslatedShapeSettings(
                     Vec3Arg::sZero(), 
                     Quat::sRotation(Vec3::sAxisX(), JPH_PI/2), 
-                    new CylinderShapeSettings(scale.GetY(), 2.0f * scale.GetX())
+                    new CylinderShapeSettings(scale.GetZ(), 2.0f * scale.GetX())
                 ).Create().Get();
         
     default:
