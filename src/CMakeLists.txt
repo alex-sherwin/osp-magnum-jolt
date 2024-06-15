@@ -99,7 +99,7 @@ SET(OSP_MAGNUM_DEPS_LIBS
             Magnum::AnyImageImporter
             MagnumPlugins::TinyGltfImporter
             MagnumPlugins::StbImageImporter
-            dNewton dScene dModel dVehicle
+#            dNewton dScene dModel dVehicle
             toml11
             spdlog
             longeron
